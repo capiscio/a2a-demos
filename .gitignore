@@ -1,0 +1,30 @@
+# Files to ignore
+.env
+.env.local
+*.pyc
+__pycache__/
+**/.venv/
+**/venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Generated keys and credentials
+**/.capiscio/
+**/capiscio_keys/
+**/agent-card.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Docker
+postgres_data/
+
+# OS
+.DS_Store
+Thumbs.db

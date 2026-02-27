@@ -12,19 +12,19 @@ import logging
 import os
 import sys
 import uuid
-from pathlib import Path
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, Request
-from fastapi.responses import JSONResponse
 import uvicorn
+from dotenv import load_dotenv
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 # Add shared module to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
 
-from capiscio_events import EventEmitter, EventType, EventSeverity
+from capiscio_events import EventEmitter, EventSeverity, EventType
 
 # CapiscIO SDK - "Let's Encrypt" style agent identity
 try:
@@ -40,7 +40,7 @@ except ImportError:
     CapiscioMiddleware = None
 
 # CrewAI imports
-from crewai import Agent, Task, Crew, Process
+from crewai import Agent, Crew, Process, Task
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
@@ -404,7 +404,7 @@ async def demo_mode():
     print("\n" + "="*60)
     print(f"🤖 {AGENT_NAME} - Interactive Demo Mode")
     print("="*60)
-    print(f"\n📊 Events visible at: http://localhost:3000/events")
+    print("\n📊 Events visible at: http://localhost:3000/events")
     print("Type 'quit' to exit\n")
     
     while True:

@@ -148,7 +148,7 @@ def demo_single_agent(agent_key: str, custom_task: Optional[str] = None):
             print(f"\n❌ Task failed: {status.get('message', state)}")
             
     except httpx.ReadTimeout:
-        print(f"\n⏱️  Task timed out after 120s")
+        print("\n⏱️  Task timed out after 120s")
     except Exception as e:
         print(f"\n❌ Error: {e}")
 
@@ -221,7 +221,7 @@ def demo_chain():
         return
     
     content_task = f"Based on this research, write a compelling blog post:\n\n{research_output[:500]}"
-    print(f"📤 Task: Create blog post from research...")
+    print("📤 Task: Create blog post from research...")
     try:
         result = send_task(crewai["url"], content_task)
         content_output = ""

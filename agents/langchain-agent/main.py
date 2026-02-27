@@ -14,20 +14,20 @@ import logging
 import os
 import sys
 import uuid
-from pathlib import Path
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, Request
-from fastapi.responses import JSONResponse
 import uvicorn
+from dotenv import load_dotenv
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 # Add shared module to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
 
-from capiscio_events import EventEmitter, EventType, EventSeverity
+from capiscio_events import EventEmitter, EventSeverity, EventType
 
 # CapiscIO SDK - "Let's Encrypt" style agent identity
 try:
@@ -45,11 +45,11 @@ except ImportError:
     SimpleGuard = None
 
 # LangChain imports
-from langchain_openai import ChatOpenAI
-from langchain_core.tools import tool
-from langchain_core.messages import HumanMessage, AIMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
 # Configure logging
@@ -202,9 +202,9 @@ def create_research_agent(callback_handler: CapiscioCallbackHandler):
     tools = [search_web, get_current_time, calculate]
     
     # System message for the agent
-    system_message = """You are a helpful research assistant. You can search the web, 
-    check the current time, and perform calculations. 
-    
+    system_message = """You are a helpful research assistant. You can search the web,
+    check the current time, and perform calculations.
+
     Always provide accurate and well-researched responses.
     When you use tools, explain what you're doing and why."""
     
@@ -314,7 +314,7 @@ async def get_agent_card():
     
     This endpoint is discovered by other agents to understand our capabilities.
     """
-    agent_did = agent.did if agent else f"did:web:localhost:agents:langchain"
+    agent_did = agent.did if agent else "did:web:localhost:agents:langchain"
     
     return {
         **AGENT_CARD,
@@ -438,7 +438,7 @@ async def demo_mode():
     print("\n" + "="*60)
     print(f"🤖 {AGENT_NAME} - Interactive Demo Mode")
     print("="*60)
-    print(f"\n📊 Events visible at: http://localhost:3000/events")
+    print("\n📊 Events visible at: http://localhost:3000/events")
     print("Type 'quit' to exit\n")
     
     callback = CapiscioCallbackHandler(events)
@@ -510,7 +510,7 @@ if __name__ == "__main__":
         )
         
         events.agent_started({
-            "mode": "interactive", 
+            "mode": "interactive",
             "framework": "langchain",
             "did": agent.did if agent else None,
         })

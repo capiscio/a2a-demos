@@ -1,0 +1,26 @@
+# Ruff configuration for a2a-demos
+# Relaxed rules for demo/example code - focus on correctness over strict style
+
+line-length = 120
+
+[lint]
+# Select rules: E (pycodestyle errors), F (pyflakes), W (pycodestyle warnings)
+select = ["E", "F", "W", "I"]
+
+# Ignore rules that are too strict for demo code
+ignore = [
+    "E501",  # Line too long (demos prioritize readability over line length)
+    "E402",  # Module level import not at top (demos sometimes need sys.path manipulation)
+    "F401",  # Imported but unused (demos may import for documentation purposes)
+    "W293",  # Blank line contains whitespace (cosmetic only)
+]
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[lint.per-file-ignores]
+# Allow star imports in __init__.py files
+"__init__.py" = ["F403", "F405"]
+
+# Demo scripts can be more relaxed
+"scripts/*.py" = ["E402", "F401"]

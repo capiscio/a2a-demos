@@ -12,20 +12,20 @@ import logging
 import os
 import sys
 import uuid
-from pathlib import Path
 from contextlib import asynccontextmanager
-from typing import Annotated, Literal, Optional, TypedDict
 from operator import add
+from pathlib import Path
+from typing import Annotated, Literal, Optional, TypedDict
 
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, Request
-from fastapi.responses import JSONResponse
 import uvicorn
+from dotenv import load_dotenv
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 # Add shared module to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
 
-from capiscio_events import EventEmitter, EventType, EventSeverity
+from capiscio_events import EventEmitter, EventSeverity, EventType
 
 # CapiscIO SDK - "Let's Encrypt" style agent identity
 try:
@@ -41,9 +41,9 @@ except ImportError:
     CapiscioMiddleware = None
 
 # LangGraph imports
-from langgraph.graph import StateGraph, END
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage
+from langgraph.graph import END, StateGraph
 
 # Configure logging
 logging.basicConfig(
@@ -306,7 +306,7 @@ def create_support_graph() -> StateGraph:
 
 def run_workflow_with_events(user_message: str) -> str:
     """Run the support workflow and emit events."""
-    trace_id = events.new_trace()
+    _trace_id = events.new_trace()  # Sets up tracing context
     task_id = str(uuid.uuid4())[:8]
     
     events.task_started(task_id, "support_workflow", {"message": user_message[:100]})
@@ -488,7 +488,7 @@ async def send_task(request: Request, x_capiscio_badge: Optional[str] = Header(N
     events.emit(
         EventType.A2A_REQUEST_RECEIVED,
         {
-            "task_id": task_id, 
+            "task_id": task_id,
             "authenticated": badge_info.get("valid", False),
             "caller_agent": badge_info.get("agent_id"),
             "trust_level": badge_info.get("trust_level"),
@@ -578,7 +578,7 @@ async def demo_mode():
     print("\n" + "="*60)
     print(f"🤖 {AGENT_NAME} - Interactive Demo Mode")
     print("="*60)
-    print(f"\n📊 Events visible at: http://localhost:3000/events")
+    print("\n📊 Events visible at: http://localhost:3000/events")
     print("\nExample queries:")
     print("  • 'My app keeps crashing when I click save'")
     print("  • 'I was charged twice for my subscription'")
@@ -593,7 +593,7 @@ async def demo_mode():
             if not message:
                 continue
             
-            print(f"\n🔄 Processing through support workflow...")
+            print("\n🔄 Processing through support workflow...")
             print("Watch the dashboard to see node transitions!\n")
             
             result = run_workflow_with_events(message)

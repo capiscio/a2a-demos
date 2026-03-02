@@ -1,0 +1,3 @@
+capiscio-mcp[mcp]>=2.4.0
+capiscio-sdk>=2.4.1
+python-dotenv>=1.0.0

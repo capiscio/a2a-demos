@@ -1,0 +1,49 @@
+version: '3.8'
+
+# CapiscIO MCP Demo
+#
+# Usage:
+#   cp .env.example .env   # fill in your CAPISCIO_SERVER_ID and CAPISCIO_API_KEY
+#   docker compose up --build
+#
+# What this starts:
+#   mcp-server — The demo MCP filesystem server (registers DID, gets badge)
+#
+# The mcp-client service is run manually once the server is healthy:
+#   docker compose run --rm mcp-client
+#
+# Both services use the public CapiscIO registry at https://registry.capisc.io
+
+services:
+
+  # --------------------------------------------------------------------------
+  # Demo MCP server (the "Let's Encrypt" MCP server)
+  # --------------------------------------------------------------------------
+  mcp-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    environment:
+      CAPISCIO_SERVER_ID: ${CAPISCIO_SERVER_ID}
+      CAPISCIO_API_KEY: ${CAPISCIO_API_KEY}
+      CAPISCIO_SERVER_URL: https://registry.capisc.io
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Demo MCP client (run manually with: docker compose run --rm mcp-client)
+  # --------------------------------------------------------------------------
+  mcp-client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    environment:
+      MCP_SERVER_COMMAND: python
+      MCP_SERVER_ARGS: /app/server/main.py
+      CAPISCIO_AGENT_BADGE: ${CAPISCIO_AGENT_BADGE:-}
+      CAPISCIO_MIN_TRUST_LEVEL: ${CAPISCIO_MIN_TRUST_LEVEL:-1}
+      CAPISCIO_SERVER_URL: https://registry.capisc.io
+    volumes:
+      # Share server code so the client can launch it in-process
+      - ./server:/app/server:ro
+    profiles:
+      - client

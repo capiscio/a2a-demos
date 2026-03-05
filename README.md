@@ -1,15 +1,51 @@
-# A2A Agent Demos with CapiscIO Security
+# CapiscIO Demos
 
-> Interactive demos showcasing AI agents built with different frameworks, all secured with CapiscIO trust badges.
+> Working examples of CapiscIO's "Let's Encrypt for AI" approach — cryptographic identity and trust badges for both **MCP servers** and **A2A agents**.
 
-## 🎯 What This Demonstrates
+## Demos at a Glance
 
-Run **3 different AI agents** using different frameworks:
-- **LangChain** - Research agent with tool calling (port 8001)
-- **CrewAI** - Multi-agent crew for creative tasks (port 8002)
-- **LangGraph** - Stateful agent with complex workflows (port 8003)
+| Demo | What it shows | Quick start |
+|------|---------------|-------------|
+| **[MCP Server Identity](#-mcp-server-identity-demo)** | One-line server identity, per-tool trust levels, client verification | `cd mcp-demo && docker compose up` |
+| **[A2A Agents](#-a2a-agent-demos)** | 3 framework agents with DID, badges, and real-time events | `./scripts/setup.sh && ./scripts/run-agents.sh` |
 
-All agents use the CapiscIO SDK to get a cryptographic identity (DID), register with the CapiscIO registry, and participate in trusted agent-to-agent communication. Watch their **event logs in real-time** via the [CapiscIO dashboard](https://app.capisc.io).
+Both demos use the public CapiscIO registry at [registry.capisc.io](https://registry.capisc.io). Sign up free at [app.capisc.io](https://app.capisc.io).
+
+---
+
+## 🔒 MCP Server Identity Demo
+
+**"Let's Encrypt for MCP servers"** — automatic cryptographic identity, trust badges, and per-tool access control.
+
+| Feature | Description |
+|---------|-------------|
+| `MCPServerIdentity.connect()` | One-liner: generates keys, registers DID, obtains badge |
+| Server identity in `_meta` | Every `initialize` response carries the server's DID + badge |
+| Per-tool trust levels | `@server.tool(min_trust_level=N)` — e.g. `list_files`=0, `read_file`=2, `write_file`=3 |
+| Client verification | Client validates server DID + badge before calling tools |
+| Auto-renewal | `ServerBadgeKeeper` renews the badge before it expires |
+
+### Quick start
+
+```bash
+cd mcp-demo
+cp .env.example .env            # Set CAPISCIO_SERVER_ID + CAPISCIO_API_KEY
+docker compose up --build       # Starts registry, MCP server, and client
+```
+
+**→ Full setup, architecture, and expected output: [`mcp-demo/README.md`](mcp-demo/README.md)**
+
+---
+
+## 🤖 A2A Agent Demos
+
+Run **3 AI agents** built with different frameworks, all secured with CapiscIO trust badges:
+
+- **LangChain** — Research agent with tool calling (port 8001)
+- **CrewAI** — Multi-agent crew for creative tasks (port 8002)
+- **LangGraph** — Stateful agent with complex workflows (port 8003)
+
+All agents use `CapiscIO.connect()` to get a cryptographic identity (DID), register with the registry, and participate in trusted agent-to-agent communication. Watch their **event logs in real-time** via the [CapiscIO dashboard](https://app.capisc.io).
 
 ## 🚀 Quick Start
 
@@ -153,20 +189,25 @@ When an agent starts with `--serve`, the SDK (`CapiscIO.connect()`) automaticall
 
 ```
 a2a-demos/
+├── mcp-demo/                     # MCP Server Identity demo
+│   ├── server/main.py            # Guarded MCP filesystem server
+│   ├── client/main.py            # Client with server verification
+│   ├── docker-compose.yml        # Full stack orchestration
+│   └── README.md                 # Detailed MCP demo docs
 ├── agents/
-│   ├── langchain-agent/      # LangChain research agent (port 8001)
-│   │   ├── main.py           # Agent implementation
-│   │   ├── requirements.txt  # Python dependencies
-│   │   └── .venv/            # Created by setup.sh
-│   ├── crewai-agent/         # CrewAI multi-agent crew (port 8002)
-│   └── langgraph-agent/      # LangGraph stateful agent (port 8003)
+│   ├── langchain-agent/          # LangChain research agent (port 8001)
+│   │   ├── main.py               # Agent implementation
+│   │   ├── requirements.txt      # Python dependencies
+│   │   └── .venv/                # Created by setup.sh
+│   ├── crewai-agent/             # CrewAI multi-agent crew (port 8002)
+│   └── langgraph-agent/          # LangGraph stateful agent (port 8003)
 ├── scripts/
-│   ├── setup.sh              # Create venvs, install deps
-│   ├── run-agents.sh         # Launch all 3 agents (tmux or manual)
-│   └── demo_driver.py        # Send A2A tasks between agents
+│   ├── setup.sh                  # Create venvs, install deps
+│   ├── run-agents.sh             # Launch all 3 agents (tmux or manual)
+│   └── demo_driver.py            # Send A2A tasks between agents
 ├── shared/
-│   └── capiscio_events/      # Shared event emission module
-├── .env.example              # Environment template (all vars documented)
+│   └── capiscio_events/          # Shared event emission module
+├── .env.example                  # Environment template (all vars documented)
 └── README.md
 ```
 
@@ -179,24 +220,23 @@ a2a-demos/
 │   │ Badge CA │  │ Events   │  │ Agent Registry   │      │
 │   │ /v1/badge│  │ /v1/events│  │ /v1/sdk/agents   │      │
 │   └──────────┘  └──────────┘  └──────────────────┘      │
-└─────────────────────┬───────────────────────────────────┘
-                      │
-        ┌─────────────┼─────────────┐
-        ▼             ▼             ▼
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│  LangChain   │ │   CrewAI     │ │  LangGraph   │
-│  :8001       │ │  :8002       │ │  :8003       │
-│              │ │              │ │              │
-│ CapiscIO SDK │ │ CapiscIO SDK │ │ CapiscIO SDK │
-│ → DID + Keys │ │ → DID + Keys │ │ → DID + Keys │
-│ → Badge      │ │ → Badge      │ │ → Badge      │
-│ → Events     │ │ → Events     │ │ → Events     │
-│              │ │              │ │              │
-│  FastAPI +   │ │  FastAPI +   │ │  FastAPI +   │
-│  Middleware  │ │  Middleware  │ │  Middleware  │
-└──────────────┘ └──────────────┘ └──────────────┘
-        │                                │
-        └────── A2A Protocol ────────────┘
+└───────────┬─────────────────────────┬───────────────────┘
+            │                         │
+     ┌──────┴──────┐      ┌──────────┴──────────┐
+     │ A2A Agents  │      │     MCP Demo        │
+     ├─────────────┤      ├─────────────────────┤
+     │             │      │                     │
+     │  LangChain  │      │  MCP Server         │
+     │  :8001      │      │  MCPServerIdentity  │
+     │             │      │  .connect()         │
+     │  CrewAI     │      │  + per-tool trust   │
+     │  :8002      │      │        │            │
+     │             │      │   stdio│transport   │
+     │  LangGraph  │      │        ▼            │
+     │  :8003      │      │  MCP Client         │
+     │             │      │  verifies server    │
+     │ A2A Proto   │      │  DID + badge        │
+     └─────────────┘      └─────────────────────┘
 ```
 
 Each agent gets its own cryptographic identity (DID) and key pair. Badges are CA-signed by the CapiscIO registry.

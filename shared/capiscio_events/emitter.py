@@ -27,8 +27,8 @@ class EventEmitter:
 
     Example:
         emitter = EventEmitter(
-            server_url="http://localhost:8080",
-            api_key="sk_test_demo_key",
+            server_url="https://registry.capisc.io",
+            api_key="sk_live_your_api_key",
             agent_id="my-agent-uuid"
         )
 
@@ -54,7 +54,7 @@ class EventEmitter:
             agent_name: Human-readable agent name for payloads
             default_trace_id: Default trace ID for correlation (auto-generated if not provided)
         """
-        self.server_url = server_url or os.environ.get("CAPISCIO_SERVER_URL", "http://localhost:8080")
+        self.server_url = server_url or os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io")
         self.api_key = api_key or os.environ.get("CAPISCIO_API_KEY", "")
         self.agent_id = agent_id or os.environ.get("CAPISCIO_AGENT_ID", str(uuid.uuid4()))
         self.agent_name = agent_name or os.environ.get("CAPISCIO_AGENT_NAME", "unnamed-agent")

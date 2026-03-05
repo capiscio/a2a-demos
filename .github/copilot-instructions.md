@@ -115,8 +115,8 @@ These demos exist to show developers how easy CapiscIO is. Keep the integration 
 ### 2. Each Agent Is Independent
 Agents share the `shared/` module but each has its own venv and requirements. Don't create cross-agent dependencies.
 
-### 3. Docker Compose Is for Local Dev Only
-The `docker-compose.yml` spins up local server+core+postgres for offline development. Production demos use `registry.capisc.io`.
+### 3. Docker Compose Uses Public Registry
+The `mcp-demo/docker-compose.yml` uses the public registry at `registry.capisc.io`. The capiscio-server is a private product — never add localhost server instructions to READMEs.
 
 ### 4. Credentials Are Gitignored
 The `.env` file contains real API keys. Never commit it. Use `.env.example` as template.

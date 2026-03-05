@@ -576,7 +576,7 @@ async def demo_mode():
     print("\n" + "="*60)
     print(f"🤖 {AGENT_NAME} - Interactive Demo Mode")
     print("="*60)
-    print("\n📊 Events visible at: http://localhost:3000/events")
+    print("\n📊 Events visible at: https://app.capisc.io/events")
     print("\nExample queries:")
     print("  • 'My app keeps crashing when I click save'")
     print("  • 'I was charged twice for my subscription'")

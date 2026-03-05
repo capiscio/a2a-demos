@@ -9,7 +9,7 @@
 | **[MCP Server Identity](#-mcp-server-identity-demo)** | One-line server identity, per-tool trust levels, client verification | `cd mcp-demo && docker compose up` |
 | **[A2A Agents](#-a2a-agent-demos)** | 3 framework agents with DID, badges, and real-time events | `./scripts/setup.sh && ./scripts/run-agents.sh` |
 
-Both demos use the CapiscIO registry at [registry.capisc.io](https://registry.capisc.io) (or a local instance).
+Both demos use the public CapiscIO registry at [registry.capisc.io](https://registry.capisc.io). Sign up free at [app.capisc.io](https://app.capisc.io).
 
 ---
 

@@ -29,7 +29,7 @@ python main.py
 1. **Registers as an A2A agent** with Agent Card at `/.well-known/agent.json`
 2. **Requests a trust badge** from the CapiscIO CA
 3. **Auto-renews badges** via BadgeKeeper before expiration
-4. **Emits events** visible in the dashboard (http://localhost:3000/events)
+4. **Emits events** visible in the dashboard at [app.capisc.io/events](https://app.capisc.io/events)
 5. **Executes research tasks** using LangChain's tool-calling agents
 
 ## Events Emitted

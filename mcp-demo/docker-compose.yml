@@ -1,62 +1,20 @@
 version: '3.8'
 
-# CapiscIO MCP Demo — local test stack
+# CapiscIO MCP Demo
 #
 # Usage:
 #   cp .env.example .env   # fill in your CAPISCIO_SERVER_ID and CAPISCIO_API_KEY
-#   docker compose up
+#   docker compose up --build
 #
 # What this starts:
-#   capiscio-server  — CapiscIO registry (CAPISCIO_TEST_MODE=true, no Clerk needed)
-#   postgres         — PostgreSQL backing the server
-#   mcp-server       — The demo MCP filesystem server (registers DID, gets badge)
+#   mcp-server — The demo MCP filesystem server (registers DID, gets badge)
 #
-# The mcp-client service is run manually once all services are healthy:
+# The mcp-client service is run manually once the server is healthy:
 #   docker compose run --rm mcp-client
+#
+# Both services use the public CapiscIO registry at https://registry.capisc.io
 
 services:
-
-  # --------------------------------------------------------------------------
-  # CapiscIO registry (test mode — no Clerk / JWT required)
-  # --------------------------------------------------------------------------
-  capiscio-server:
-    image: ghcr.io/capiscio/capiscio-server:latest
-    build:
-      context: ../..
-      dockerfile: capiscio-server/Dockerfile
-      target: cloud
-    ports:
-      - "8080:8080"
-    environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/capiscio?sslmode=disable
-      PORT: "8080"
-      CAPISCIO_TEST_MODE: "true"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
-  # --------------------------------------------------------------------------
-  # PostgreSQL
-  # --------------------------------------------------------------------------
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: capiscio
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   # --------------------------------------------------------------------------
   # Demo MCP server (the "Let's Encrypt" MCP server)
@@ -68,10 +26,7 @@ services:
     environment:
       CAPISCIO_SERVER_ID: ${CAPISCIO_SERVER_ID}
       CAPISCIO_API_KEY: ${CAPISCIO_API_KEY}
-      CAPISCIO_SERVER_URL: http://capiscio-server:8080
-    depends_on:
-      capiscio-server:
-        condition: service_healthy
+      CAPISCIO_SERVER_URL: https://registry.capisc.io
     restart: unless-stopped
 
   # --------------------------------------------------------------------------
@@ -86,15 +41,9 @@ services:
       MCP_SERVER_ARGS: /app/server/main.py
       CAPISCIO_AGENT_BADGE: ${CAPISCIO_AGENT_BADGE:-}
       CAPISCIO_MIN_TRUST_LEVEL: ${CAPISCIO_MIN_TRUST_LEVEL:-1}
-      CAPISCIO_SERVER_URL: http://capiscio-server:8080
+      CAPISCIO_SERVER_URL: https://registry.capisc.io
     volumes:
       # Share server code so the client can launch it in-process
       - ./server:/app/server:ro
-    depends_on:
-      capiscio-server:
-        condition: service_healthy
     profiles:
       - client
-
-volumes:
-  postgres_data:

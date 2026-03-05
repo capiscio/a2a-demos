@@ -14,8 +14,8 @@ pip install -e .
 from capiscio_events import EventEmitter, EventType
 
 emitter = EventEmitter(
-    server_url="http://localhost:8080",
-    api_key="sk_test_demo_key",
+    server_url="https://registry.capisc.io",
+    api_key="sk_live_your_api_key",
     agent_id="my-agent-uuid",
     agent_name="My Agent",
 )

@@ -18,45 +18,16 @@ demonstration of RFC-006 (tool authority) and RFC-007 (server identity disclosur
 
 ---
 
-## Quick start (Docker)
+## Prerequisites
 
-### 1. Prerequisites
-
-- Docker + Docker Compose
+- Python 3.11+
 - A CapiscIO account at [app.capisc.io](https://app.capisc.io)
 - An MCP server registered in the dashboard (get its UUID)
 - An API key (Settings → API Keys)
 
-### 2. Configure
-
-```bash
-cd a2a-demos/mcp-demo
-cp .env.example .env
-# Edit .env: set CAPISCIO_SERVER_ID and CAPISCIO_API_KEY
-```
-
-### 3. Start the stack
-
-```bash
-docker compose up --build
-```
-
-This starts:
-- **`capiscio-server`** on port 8080 (test mode, no Clerk needed)
-- **`postgres`** backing the registry
-- **`mcp-server`** — the demo MCP server that registers its identity on startup
-
-### 4. Run the client
-
-In a second terminal:
-
-```bash
-docker compose run --rm mcp-client
-```
-
 ---
 
-## Quick start (local / without Docker)
+## Quick start
 
 ### 1. Install dependencies
 
@@ -66,29 +37,25 @@ pip install -r server/requirements.txt
 pip install -r client/requirements.txt
 ```
 
-### 2. Start a local CapiscIO server
+### 2. Configure
 
 ```bash
-cd ../../capiscio-server
-CAPISCIO_TEST_MODE=true make run
+cp .env.example .env
+# Edit .env: set CAPISCIO_SERVER_ID and CAPISCIO_API_KEY
 ```
 
 ### 3. Start the MCP server
 
-In a new terminal:
 ```bash
-cd a2a-demos/mcp-demo
 export CAPISCIO_SERVER_ID=<your-server-uuid>
 export CAPISCIO_API_KEY=<your-api-key>
-export CAPISCIO_SERVER_URL=http://localhost:8080
 python server/main.py
 ```
 
-### 4. Run the client (in yet another terminal)
+### 4. Run the client (in another terminal)
 
 ```bash
 cd a2a-demos/mcp-demo
-export CAPISCIO_SERVER_URL=http://localhost:8080
 python client/main.py
 ```
 
@@ -154,7 +121,6 @@ test the higher-trust tools.
           │                                                 │
           └──────────── CapiscIO Registry ─────────────────┘
                         https://registry.capisc.io
-                        (or localhost:8080 in test mode)
 ```
 
 ---
@@ -172,7 +138,7 @@ mcp-demo/
 │   ├── main.py              # Agent that calls the MCP server
 │   ├── requirements.txt
 │   └── Dockerfile
-├── docker-compose.yml       # capiscio-server + mcp-server + client
+├── docker-compose.yml       # MCP server + client (uses registry.capisc.io)
 ├── .env.example             # Config template
 └── README.md                # This file
 ```

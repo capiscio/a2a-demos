@@ -6,14 +6,14 @@
 
 | Demo | What it shows | Quick start |
 |------|---------------|-------------|
-| **[MCP Server Identity](#-mcp-server-identity-demo)** | One-line server identity, per-tool trust levels, client verification | `cd mcp-demo && docker compose up` |
-| **[A2A Agents](#-a2a-agent-demos)** | 3 framework agents with DID, badges, and real-time events | `./scripts/setup.sh && ./scripts/run-agents.sh` |
+| **[MCP Guard Demo](#-mcp-guard-demo)** | One-line server identity, per-tool trust levels, client verification | `cd mcp-demo && docker compose up` |
+| **[Agent Guard Demos](#-agent-guard-demos)** | 3 framework agents with DID, badges, and real-time events | `./scripts/setup.sh && ./scripts/run-agents.sh` |
 
 Both demos use the public CapiscIO registry at [registry.capisc.io](https://registry.capisc.io). Sign up free at [app.capisc.io](https://app.capisc.io).
 
 ---
 
-## 🔒 MCP Server Identity Demo
+## 🔒 MCP Guard Demo
 
 **"Let's Encrypt for MCP servers"** — automatic cryptographic identity, trust badges, and per-tool access control.
 
@@ -37,7 +37,7 @@ docker compose up --build       # Starts registry, MCP server, and client
 
 ---
 
-## 🤖 A2A Agent Demos
+## 🤖 Agent Guard Demos
 
 Run **3 AI agents** built with different frameworks, all secured with CapiscIO trust badges:
 
@@ -189,7 +189,7 @@ When an agent starts with `--serve`, the SDK (`CapiscIO.connect()`) automaticall
 
 ```
 a2a-demos/
-├── mcp-demo/                     # MCP Server Identity demo
+├── mcp-demo/                     # MCP Guard demo
 │   ├── server/main.py            # Guarded MCP filesystem server
 │   ├── client/main.py            # Client with server verification
 │   ├── docker-compose.yml        # Full stack orchestration
@@ -223,7 +223,7 @@ a2a-demos/
 └───────────┬─────────────────────────┬───────────────────┘
             │                         │
      ┌──────┴──────┐      ┌──────────┴──────────┐
-     │ A2A Agents  │      │     MCP Demo        │
+     │Agent Guard  │      │    MCP Guard        │
      ├─────────────┤      ├─────────────────────┤
      │             │      │                     │
      │  LangChain  │      │  MCP Server         │

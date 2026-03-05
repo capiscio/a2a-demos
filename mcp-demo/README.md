@@ -1,4 +1,4 @@
-# CapiscIO MCP Demo
+# CapiscIO MCP Guard Demo
 
 **"Let's Encrypt for AI agents, including MCP servers"** — a working end-to-end
 demonstration of RFC-006 (tool authority) and RFC-007 (server identity disclosure).

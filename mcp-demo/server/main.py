@@ -35,8 +35,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # CapiscIO imports
 # ---------------------------------------------------------------------------
-from capiscio_mcp import MCPServerIdentity
-from capiscio_mcp.integrations.mcp import CapiscioMCPServer
+from capiscio_mcp import MCPServerIdentity  # noqa: E402
+from capiscio_mcp.integrations.mcp import CapiscioMCPServer  # noqa: E402
 
 
 async def build_server() -> CapiscioMCPServer:

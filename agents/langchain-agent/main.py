@@ -27,7 +27,7 @@ from fastapi.responses import JSONResponse
 # Add shared module to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
 
-from capiscio_events import EventEmitter, EventSeverity, EventType
+from capiscio_events import EventEmitter, EventType
 
 # CapiscIO SDK - "Let's Encrypt" style agent identity
 try:
@@ -46,8 +46,7 @@ except ImportError:
 
 # LangChain imports
 from langchain_core.callbacks import BaseCallbackHandler
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
@@ -105,49 +104,49 @@ events: Optional[EventEmitter] = None
 
 class CapiscioCallbackHandler(BaseCallbackHandler):
     """LangChain callback handler that emits events to CapiscIO."""
-    
+
     def __init__(self, emitter: EventEmitter):
         self.emitter = emitter
-    
+
     def on_chain_start(self, serialized, inputs, **kwargs):
         chain_name = serialized.get("name", "unknown")
         self.emitter.emit(
             EventType.LANGCHAIN_CHAIN_START,
             {"chain": chain_name, "inputs": str(inputs)[:200]},
         )
-    
+
     def on_chain_end(self, outputs, **kwargs):
         self.emitter.emit(
             EventType.LANGCHAIN_CHAIN_END,
             {"outputs": str(outputs)[:200]},
         )
-    
+
     def on_llm_start(self, serialized, prompts, **kwargs):
         model = serialized.get("name", "unknown")
         self.emitter.emit(
             EventType.LANGCHAIN_LLM_START,
             {"model": model, "prompt_count": len(prompts)},
         )
-    
+
     def on_llm_end(self, response, **kwargs):
         self.emitter.emit(
             EventType.LANGCHAIN_LLM_END,
             {"generations": len(response.generations) if response.generations else 0},
         )
-    
+
     def on_tool_start(self, serialized, input_str, **kwargs):
         tool_name = serialized.get("name", "unknown")
         self.emitter.emit(
             EventType.LANGCHAIN_TOOL_START,
             {"tool": tool_name, "input": str(input_str)[:200]},
         )
-    
+
     def on_tool_end(self, output, **kwargs):
         self.emitter.emit(
             EventType.LANGCHAIN_TOOL_END,
             {"output": str(output)[:200]},
         )
-    
+
     def on_tool_error(self, error, **kwargs):
         self.emitter.error(
             f"Tool error: {error}",
@@ -190,27 +189,27 @@ def calculate(expression: str) -> str:
 
 def create_research_agent(callback_handler: CapiscioCallbackHandler):
     """Create the LangChain research agent using LangGraph."""
-    
+
     # Initialize LLM
     llm = ChatOpenAI(
         model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
         temperature=0,
         api_key=OPENAI_API_KEY,
     )
-    
+
     # Define tools
     tools = [search_web, get_current_time, calculate]
-    
+
     # System message for the agent
     system_message = """You are a helpful research assistant. You can search the web,
     check the current time, and perform calculations.
 
     Always provide accurate and well-researched responses.
     When you use tools, explain what you're doing and why."""
-    
+
     # Create the agent using langgraph prebuilt
     agent = create_react_agent(llm, tools, prompt=system_message)
-    
+
     return agent
 
 
@@ -222,7 +221,7 @@ def create_research_agent(callback_handler: CapiscioCallbackHandler):
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
     global events, agent
-    
+
     # CapiscIO.connect() - "Let's Encrypt" style one-liner setup
     # Handles: key generation, DID derivation, registration, badge request
     if CAPISCIO_SDK_AVAILABLE:
@@ -240,7 +239,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"⚠️  CapiscIO identity setup failed: {e}")
             agent = None
-    
+
     # Initialize event emitter for framework-specific events
     events = EventEmitter(
         server_url=agent.server_url if agent else CAPISCIO_SERVER,
@@ -248,7 +247,7 @@ async def lifespan(app: FastAPI):
         agent_id=agent.agent_id if agent else "",
         agent_name=AGENT_NAME,
     )
-    
+
     # Emit startup event
     events.agent_started({
         "framework": "langchain",
@@ -257,16 +256,16 @@ async def lifespan(app: FastAPI):
         "security_mode": SECURITY_MODE,
         "did": agent.did if agent else None,
     })
-    
+
     logger.info(f"🚀 {AGENT_NAME} started on port {PORT}")
     logger.info(f"📊 Events visible at {CAPISCIO_SERVER.replace(':8080', ':3000')}/events")
-    
+
     yield
-    
+
     # Close agent (stops badge renewal, cleans up)
     if agent:
         agent.close()
-    
+
     # Emit shutdown event
     events.agent_stopped()
     events.close()
@@ -288,7 +287,7 @@ if CAPISCIO_SDK_AVAILABLE and CapiscioMiddleware and SimpleGuard:
     security_config = SecurityConfig.from_env()
     logger.info(f"Security config: fail_mode={security_config.fail_mode}, "
                 f"require_signatures={security_config.downstream.require_signatures}")
-    
+
     # Create guard for middleware (dev_mode auto-generates keys when no agent-card.json)
     _guard = SimpleGuard(
         dev_mode=(SECURITY_MODE == "dev"),
@@ -311,11 +310,11 @@ if CAPISCIO_SDK_AVAILABLE and CapiscioMiddleware and SimpleGuard:
 async def get_agent_card():
     """
     Serve the A2A Agent Card (Google A2A Protocol).
-    
+
     This endpoint is discovered by other agents to understand our capabilities.
     """
     agent_did = agent.did if agent else "did:web:localhost:agents:langchain"
-    
+
     return {
         **AGENT_CARD,
         "x-capiscio": {
@@ -334,18 +333,18 @@ async def get_agent_card():
 async def send_task(request: Request, x_capiscio_badge: Optional[str] = Header(None)):
     """
     Handle incoming A2A task (Google A2A Protocol).
-    
+
     In production, validate the X-Capiscio-Badge header.
     """
     body = await request.json()
     task_id = body.get("id", str(uuid.uuid4()))
-    
+
     # Emit task received event
     events.emit(
         EventType.A2A_REQUEST_RECEIVED,
         {"task_id": task_id, "from_badge": x_capiscio_badge is not None},
     )
-    
+
     # Extract message content
     message = body.get("message", {})
     parts = message.get("parts", [])
@@ -353,30 +352,30 @@ async def send_task(request: Request, x_capiscio_badge: Optional[str] = Header(N
     for part in parts:
         if part.get("type") == "text":
             text_content += part.get("text", "")
-    
+
     if not text_content:
         raise HTTPException(status_code=400, detail="No text content in message")
-    
+
     # Create callback handler
     callback = CapiscioCallbackHandler(events)
-    
+
     # Create agent and run
     agent = create_research_agent(callback)
-    
+
     events.task_started(task_id, "research", {"query": text_content[:100]})
-    
+
     try:
         result = await asyncio.to_thread(
             agent.invoke,
             {"messages": [HumanMessage(content=text_content)]}
         )
-        
+
         # Extract output from langgraph response
         messages = result.get("messages", [])
         output = messages[-1].content if messages else "No response generated"
-        
+
         events.task_completed(task_id, {"output_length": len(output)})
-        
+
         # Return A2A compliant response
         return {
             "id": task_id,
@@ -391,11 +390,11 @@ async def send_task(request: Request, x_capiscio_badge: Optional[str] = Header(N
                 }
             ]
         }
-    
+
     except Exception as e:
         logger.exception("Task failed")
         events.task_failed(task_id, str(e))
-        
+
         return JSONResponse(
             status_code=500,
             content={
@@ -434,16 +433,16 @@ async def health():
 async def demo_mode():
     """Run interactive demo if not serving HTTP."""
     global events
-    
+
     print("\n" + "="*60)
     print(f"🤖 {AGENT_NAME} - Interactive Demo Mode")
     print("="*60)
     print("\n📊 Events visible at: http://localhost:3000/events")
     print("Type 'quit' to exit\n")
-    
+
     callback = CapiscioCallbackHandler(events)
     agent = create_research_agent(callback)
-    
+
     while True:
         try:
             query = input("\n🔍 Ask me anything: ").strip()
@@ -451,17 +450,17 @@ async def demo_mode():
                 break
             if not query:
                 continue
-            
+
             task_id = str(uuid.uuid4())[:8]
             events.task_started(task_id, "interactive", {"query": query})
-            
+
             result = agent.invoke({"messages": [HumanMessage(content=query)]})
             messages = result.get("messages", [])
             output = messages[-1].content if messages else "No response"
-            
+
             print(f"\n📝 Response:\n{output}")
             events.task_completed(task_id, {"output_length": len(output)})
-            
+
         except KeyboardInterrupt:
             break
         except Exception as e:
@@ -475,12 +474,12 @@ async def demo_mode():
 
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser(description=AGENT_NAME)
     parser.add_argument("--serve", action="store_true", help="Run as HTTP server")
     parser.add_argument("--port", type=int, default=PORT, help="Server port")
     args = parser.parse_args()
-    
+
     if args.serve:
         # Run as HTTP server
         uvicorn.run(app, host="0.0.0.0", port=args.port)
@@ -500,7 +499,7 @@ if __name__ == "__main__":
                 logger.info(f"🔑 Agent DID: {agent.did}")
             except Exception as e:
                 logger.warning(f"⚠️  CapiscIO identity not available: {e}")
-        
+
         # Initialize events for demo mode
         events = EventEmitter(
             server_url=agent.server_url if agent else CAPISCIO_SERVER,
@@ -508,13 +507,13 @@ if __name__ == "__main__":
             agent_id=agent.agent_id if agent else "",
             agent_name=AGENT_NAME,
         )
-        
+
         events.agent_started({
             "mode": "interactive",
             "framework": "langchain",
             "did": agent.did if agent else None,
         })
-        
+
         try:
             asyncio.run(demo_mode())
         finally:

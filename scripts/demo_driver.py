@@ -59,7 +59,7 @@ def discover_agent(base_url: str) -> Optional[dict]:
 def send_task(base_url: str, message: str, badge_token: Optional[str] = None) -> dict:
     """Send an A2A task to an agent."""
     task_id = str(uuid.uuid4())
-    
+
     payload = {
         "id": task_id,
         "message": {
@@ -67,18 +67,18 @@ def send_task(base_url: str, message: str, badge_token: Optional[str] = None) ->
             "parts": [{"type": "text", "text": message}],
         },
     }
-    
+
     headers = {"Content-Type": "application/json"}
     if badge_token:
         headers["X-Capiscio-Badge"] = badge_token
-    
+
     resp = httpx.post(
         f"{base_url}/tasks/send",
         json=payload,
         headers=headers,
         timeout=120.0,  # Allow time for LLM calls
     )
-    
+
     return resp.json()
 
 
@@ -86,12 +86,12 @@ def print_agent_card(card: dict):
     """Pretty print agent card info."""
     print(f"  📛 Name: {card.get('name')}")
     print(f"  📝 Description: {card.get('description', 'N/A')[:60]}...")
-    
+
     x_capiscio = card.get("x-capiscio", {})
     if x_capiscio:
         print(f"  🔑 DID: {x_capiscio.get('did', 'N/A')[:50]}...")
         print(f"  🏷️  Trust Level: {x_capiscio.get('trustLevel', '?')}")
-    
+
     skills = card.get("skills", [])
     if skills:
         print(f"  🛠️  Skills: {', '.join(s.get('name', s.get('id')) for s in skills)}")
@@ -104,32 +104,32 @@ def demo_single_agent(agent_key: str, custom_task: Optional[str] = None):
         print(f"❌ Unknown agent: {agent_key}")
         print(f"   Available: {', '.join(AGENTS.keys())}")
         return
-    
+
     print(f"\n{'='*60}")
     print(f"🤖 {agent['name']}")
     print(f"{'='*60}")
-    
+
     # Discover
     print(f"\n📡 Discovering agent at {agent['url']}...")
     card = discover_agent(agent["url"])
     if not card:
         return
-    
+
     print_agent_card(card)
-    
+
     # Send task
     task = custom_task or agent["demo_task"]
     print(f"\n📤 Sending task: \"{task[:50]}{'...' if len(task) > 50 else ''}\"")
     print("   (Watch https://app.capisc.io/events for live events!)")
-    
+
     start = time.time()
     try:
         result = send_task(agent["url"], task)
         elapsed = time.time() - start
-        
+
         status = result.get("status", {})
         state = status.get("state", "unknown")
-        
+
         if state == "completed":
             print(f"\n✅ Task completed in {elapsed:.1f}s")
             artifacts = result.get("artifacts", [])
@@ -146,7 +146,7 @@ def demo_single_agent(agent_key: str, custom_task: Optional[str] = None):
                                 print(text)
         else:
             print(f"\n❌ Task failed: {status.get('message', state)}")
-            
+
     except httpx.ReadTimeout:
         print("\n⏱️  Task timed out after 120s")
     except Exception as e:
@@ -164,7 +164,7 @@ def demo_all_agents():
     print("  3. Display the results")
     print("\n👀 Watch events live at: https://app.capisc.io/events")
     print("="*60)
-    
+
     for key in AGENTS:
         demo_single_agent(key)
         print()
@@ -181,18 +181,18 @@ def demo_chain():
     print("  3. LangGraph handles support questions about the content")
     print("\n👀 Watch events live at: https://app.capisc.io/events")
     print("="*60)
-    
+
     # Step 1: Research
     print("\n📍 STEP 1: Research with LangChain")
     print("-"*40)
     langchain = AGENTS["langchain"]
     research_task = "Research the latest trends in AI agent security and trust frameworks"
-    
+
     card = discover_agent(langchain["url"])
     if not card:
         print("❌ LangChain agent not available, stopping chain")
         return
-    
+
     print(f"📤 Task: \"{research_task[:50]}...\"")
     try:
         result = send_task(langchain["url"], research_task)
@@ -209,17 +209,17 @@ def demo_chain():
     except Exception as e:
         print(f"❌ Error: {e}")
         return
-    
+
     # Step 2: Content
     print("\n📍 STEP 2: Create Content with CrewAI")
     print("-"*40)
     crewai = AGENTS["crewai"]
-    
+
     card = discover_agent(crewai["url"])
     if not card:
         print("❌ CrewAI agent not available, stopping chain")
         return
-    
+
     content_task = f"Based on this research, write a compelling blog post:\n\n{research_output[:500]}"
     print("📤 Task: Create blog post from research...")
     try:
@@ -237,17 +237,17 @@ def demo_chain():
     except Exception as e:
         print(f"❌ Error: {e}")
         return
-    
+
     # Step 3: Support
     print("\n📍 STEP 3: Support Query with LangGraph")
     print("-"*40)
     langgraph = AGENTS["langgraph"]
-    
+
     card = discover_agent(langgraph["url"])
     if not card:
         print("❌ LangGraph agent not available, stopping chain")
         return
-    
+
     support_task = "I read your blog post about AI security but I'm confused about how trust levels work. Can you help?"
     print(f"📤 Task: \"{support_task[:50]}...\"")
     try:
@@ -263,7 +263,7 @@ def demo_chain():
             print("❌ Support query failed")
     except Exception as e:
         print(f"❌ Error: {e}")
-    
+
     print("\n" + "="*60)
     print("🎉 Chain demo complete!")
     print("   Check https://app.capisc.io/events for the full event trace")
@@ -301,9 +301,9 @@ Examples:
         action="store_true",
         help="Only discover agents, don't send tasks",
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.discover:
         print("\n🔍 Discovering agents...\n")
         for key, agent in AGENTS.items():
@@ -313,7 +313,7 @@ Examples:
                 print_agent_card(card)
             print()
         return
-    
+
     if args.chain:
         demo_chain()
     elif args.agent:

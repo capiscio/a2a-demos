@@ -28,8 +28,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from capiscio_mcp.integrations.mcp import CapiscioMCPClient
-from capiscio_mcp.errors import ServerVerifyError
+from capiscio_mcp.integrations.mcp import CapiscioMCPClient  # noqa: E402
 
 
 async def run_demo() -> None:

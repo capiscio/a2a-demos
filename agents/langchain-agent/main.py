@@ -3,10 +3,9 @@ LangChain Research Agent with CapiscIO Security
 
 This agent demonstrates:
 1. A2A-compliant Agent Card serving
-2. Automatic badge management via CapiscIO.connect()
+2. langchain-capiscio for 3-line trust enforcement
 3. Real-time event emission to CapiscIO dashboard
 4. Tool-calling agent for research tasks
-5. "Let's Encrypt" style one-liner identity setup
 """
 
 import asyncio
@@ -29,23 +28,22 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "shared")
 
 from capiscio_events import EventEmitter, EventType
 
-# CapiscIO SDK - "Let's Encrypt" style agent identity
+# --------------------------------------------------------------------------
+# langchain-capiscio: 3 lines to secure a LangChain agent
+# --------------------------------------------------------------------------
 try:
-    from capiscio_sdk import CapiscIO, SecurityConfig
-    from capiscio_sdk.connect import AgentIdentity
+    from langchain_capiscio import CapiscioCallbackHandler, CapiscioGuard
+    from capiscio_sdk import SecurityConfig
     from capiscio_sdk.integrations.fastapi import CapiscioMiddleware
-    from capiscio_sdk.simple_guard import SimpleGuard
-    CAPISCIO_SDK_AVAILABLE = True
+    CAPISCIO_AVAILABLE = True
 except ImportError:
-    CAPISCIO_SDK_AVAILABLE = False
-    CapiscIO = None
-    AgentIdentity = None
+    CAPISCIO_AVAILABLE = False
+    CapiscioGuard = None
+    CapiscioCallbackHandler = None
     SecurityConfig = None
     CapiscioMiddleware = None
-    SimpleGuard = None
 
 # LangChain imports
-from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
@@ -66,14 +64,10 @@ AGENT_NAME = "LangChain Research Agent"
 CAPISCIO_SERVER = os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 PORT = int(os.environ.get("LANGCHAIN_AGENT_PORT", "8001"))
+SECURITY_MODE = os.environ.get("SECURITY_MODE", "ca")
+KEYS_DIR = Path(os.path.dirname(os.path.abspath(__file__))) / ".capiscio" / "keys"
 
-# Security mode: 'dev' (self-signed, SDK handles everything) or 'ca' (registry-issued badges)
-SECURITY_MODE = os.environ.get("SECURITY_MODE", "ca")  # Default to production CA mode
-
-# Global agent identity (from CapiscIO.connect())
-agent: Optional["AgentIdentity"] = None
-
-# A2A Agent Card (static parts - stored in registry and served at /.well-known/agent.json)
+# A2A Agent Card
 AGENT_CARD = {
     "name": AGENT_NAME,
     "description": "A research assistant that can search the web, check time, and calculate.",
@@ -98,60 +92,27 @@ AGENT_CARD = {
     "authentication": {"schemes": ["capiscio-badge"]},
 }
 
-# Global event emitter (for framework-specific events)
+# --------------------------------------------------------------------------
+# LINE 1: Create the guard — reads CAPISCIO_API_KEY + config from env
+# --------------------------------------------------------------------------
+guard: Optional["CapiscioGuard"] = (
+    CapiscioGuard(
+        mode="log",
+        connect_kwargs={
+            "dev_mode": SECURITY_MODE == "dev",
+            "keys_dir": KEYS_DIR,
+            "agent_card": AGENT_CARD,
+        },
+    )
+    if CAPISCIO_AVAILABLE
+    else None
+)
+
+# Global event emitter (for dashboard visibility)
 events: Optional[EventEmitter] = None
 
-
-class CapiscioCallbackHandler(BaseCallbackHandler):
-    """LangChain callback handler that emits events to CapiscIO."""
-
-    def __init__(self, emitter: EventEmitter):
-        self.emitter = emitter
-
-    def on_chain_start(self, serialized, inputs, **kwargs):
-        chain_name = serialized.get("name", "unknown")
-        self.emitter.emit(
-            EventType.LANGCHAIN_CHAIN_START,
-            {"chain": chain_name, "inputs": str(inputs)[:200]},
-        )
-
-    def on_chain_end(self, outputs, **kwargs):
-        self.emitter.emit(
-            EventType.LANGCHAIN_CHAIN_END,
-            {"outputs": str(outputs)[:200]},
-        )
-
-    def on_llm_start(self, serialized, prompts, **kwargs):
-        model = serialized.get("name", "unknown")
-        self.emitter.emit(
-            EventType.LANGCHAIN_LLM_START,
-            {"model": model, "prompt_count": len(prompts)},
-        )
-
-    def on_llm_end(self, response, **kwargs):
-        self.emitter.emit(
-            EventType.LANGCHAIN_LLM_END,
-            {"generations": len(response.generations) if response.generations else 0},
-        )
-
-    def on_tool_start(self, serialized, input_str, **kwargs):
-        tool_name = serialized.get("name", "unknown")
-        self.emitter.emit(
-            EventType.LANGCHAIN_TOOL_START,
-            {"tool": tool_name, "input": str(input_str)[:200]},
-        )
-
-    def on_tool_end(self, output, **kwargs):
-        self.emitter.emit(
-            EventType.LANGCHAIN_TOOL_END,
-            {"output": str(output)[:200]},
-        )
-
-    def on_tool_error(self, error, **kwargs):
-        self.emitter.error(
-            f"Tool error: {error}",
-            error_type="tool_error",
-        )
+# Resolved SimpleGuard instance — set once during lifespan, used by middleware
+_resolved_simple_guard = None
 
 
 # ==============================================================================
@@ -187,29 +148,33 @@ def calculate(expression: str) -> str:
 # LangChain Agent Setup
 # ==============================================================================
 
-def create_research_agent(callback_handler: CapiscioCallbackHandler):
-    """Create the LangChain research agent using LangGraph."""
+def create_research_agent():
+    """Create the LangChain research agent with CapiscIO trust enforcement.
 
-    # Initialize LLM
+    The pipe operator wires badge verification before every invocation:
+        guard | agent
+    """
     llm = ChatOpenAI(
         model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
         temperature=0,
         api_key=OPENAI_API_KEY,
     )
 
-    # Define tools
     tools = [search_web, get_current_time, calculate]
 
-    # System message for the agent
     system_message = """You are a helpful research assistant. You can search the web,
     check the current time, and perform calculations.
 
     Always provide accurate and well-researched responses.
     When you use tools, explain what you're doing and why."""
 
-    # Create the agent using langgraph prebuilt
     agent = create_react_agent(llm, tools, prompt=system_message)
 
+    # ---------------------------------------------------------------
+    # LINE 2: Pipe the guard into the agent — badge check on every call
+    # ---------------------------------------------------------------
+    if guard:
+        return guard | agent
     return agent
 
 
@@ -220,53 +185,42 @@ def create_research_agent(callback_handler: CapiscioCallbackHandler):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
-    global events, agent
+    global events, _resolved_simple_guard
 
-    # CapiscIO.connect() - "Let's Encrypt" style one-liner setup
-    # Handles: key generation, DID derivation, registration, badge request
-    if CAPISCIO_SDK_AVAILABLE:
+    # guard.identity triggers CapiscIO.connect() on first access
+    identity = None
+    if guard:
         try:
-            agent = CapiscIO.connect(
-                api_key=os.environ.get("CAPISCIO_API_KEY", ""),
-                name=AGENT_NAME,
-                server_url=CAPISCIO_SERVER,
-                dev_mode=(SECURITY_MODE == "dev"),
-                keys_dir=Path(os.path.dirname(os.path.abspath(__file__))) / ".capiscio" / "keys",
-                agent_card=AGENT_CARD,
-            )
-            logger.info(f"🔑 Agent DID: {agent.did}")
-            logger.info(f"🔐 Badge: {'acquired' if agent.badge else 'pending'}")
+            identity = guard.identity
+            _resolved_simple_guard = getattr(identity, "_guard", None)
+            logger.info(f"🔑 Agent DID: {identity.did}")
+            logger.info(f"🔐 Badge: {'acquired' if identity.badge else 'pending'}")
         except Exception as e:
             logger.warning(f"⚠️  CapiscIO identity setup failed: {e}")
-            agent = None
 
-    # Initialize event emitter for framework-specific events
+    # Initialize event emitter for dashboard visibility
     events = EventEmitter(
-        server_url=agent.server_url if agent else CAPISCIO_SERVER,
-        api_key=agent.api_key if agent else os.environ.get("CAPISCIO_API_KEY", ""),
-        agent_id=agent.agent_id if agent else "",
+        server_url=identity.server_url if identity else CAPISCIO_SERVER,
+        api_key=identity.api_key if identity else os.environ.get("CAPISCIO_API_KEY", ""),
+        agent_id=identity.agent_id if identity else "",
         agent_name=AGENT_NAME,
     )
 
-    # Emit startup event
     events.agent_started({
         "framework": "langchain",
         "version": "0.3.x",
         "port": PORT,
         "security_mode": SECURITY_MODE,
-        "did": agent.did if agent else None,
+        "did": identity.did if identity else None,
     })
 
     logger.info(f"🚀 {AGENT_NAME} started on port {PORT}")
-    logger.info(f"📊 Events visible at {CAPISCIO_SERVER.replace(':8080', ':3000')}/events")
 
     yield
 
-    # Close agent (stops badge renewal, cleans up)
-    if agent:
-        agent.close()
+    if identity:
+        identity.close()
 
-    # Emit shutdown event
     events.agent_stopped()
     events.close()
     logger.info("Agent stopped")
@@ -279,27 +233,19 @@ app = FastAPI(
 )
 
 # ==============================================================================
-# CapiscIO Security Middleware (SDK-based enforcement)
-# Must be added at module level BEFORE app starts
+# CapiscIO Security Middleware
+# The guard's identity is resolved lazily — middleware calls the lambda on
+# each request, which returns the SimpleGuard after connect() has run.
 # ==============================================================================
-if CAPISCIO_SDK_AVAILABLE and CapiscioMiddleware and SimpleGuard:
-    # Load security config from environment
+if CAPISCIO_AVAILABLE and CapiscioMiddleware and guard:
     security_config = SecurityConfig.from_env()
-    logger.info(f"Security config: fail_mode={security_config.fail_mode}, "
-                f"require_signatures={security_config.downstream.require_signatures}")
-
-    # Create guard for middleware (dev_mode auto-generates keys when no agent-card.json)
-    _guard = SimpleGuard(
-        dev_mode=(SECURITY_MODE == "dev"),
-        base_dir=os.path.dirname(os.path.abspath(__file__)),
-    )
     app.add_middleware(
         CapiscioMiddleware,
-        guard=_guard,
+        guard=lambda: _resolved_simple_guard,
         config=security_config,
         exclude_paths=["/.well-known/agent.json", "/health"],
     )
-    logger.info("🛡️  Security middleware enabled at module level")
+    logger.info("Security middleware registered")
 
 
 # ==============================================================================
@@ -308,12 +254,20 @@ if CAPISCIO_SDK_AVAILABLE and CapiscioMiddleware and SimpleGuard:
 
 @app.get("/.well-known/agent.json")
 async def get_agent_card():
-    """
-    Serve the A2A Agent Card (Google A2A Protocol).
+    """Serve the A2A Agent Card (Google A2A Protocol)."""
+    fallback_did = "did:web:localhost:agents:langchain"
+    agent_did = fallback_did
 
-    This endpoint is discovered by other agents to understand our capabilities.
-    """
-    agent_did = agent.did if agent else "did:web:localhost:agents:langchain"
+    if guard:
+        try:
+            identity = guard.identity
+            if getattr(identity, "did", None):
+                agent_did = identity.did
+        except Exception as exc:
+            logger.warning(
+                "Failed to resolve CapiscIO identity for agent card; using fallback DID: %s",
+                exc,
+            )
 
     return {
         **AGENT_CARD,
@@ -331,21 +285,15 @@ async def get_agent_card():
 
 @app.post("/tasks/send")
 async def send_task(request: Request, x_capiscio_badge: Optional[str] = Header(None)):
-    """
-    Handle incoming A2A task (Google A2A Protocol).
-
-    In production, validate the X-Capiscio-Badge header.
-    """
+    """Handle incoming A2A task (Google A2A Protocol)."""
     body = await request.json()
     task_id = body.get("id", str(uuid.uuid4()))
 
-    # Emit task received event
     events.emit(
         EventType.A2A_REQUEST_RECEIVED,
         {"task_id": task_id, "from_badge": x_capiscio_badge is not None},
     )
 
-    # Extract message content
     message = body.get("message", {})
     parts = message.get("parts", [])
     text_content = ""
@@ -356,18 +304,18 @@ async def send_task(request: Request, x_capiscio_badge: Optional[str] = Header(N
     if not text_content:
         raise HTTPException(status_code=400, detail="No text content in message")
 
-    # Create callback handler
-    callback = CapiscioCallbackHandler(events)
+    # LINE 3: CapiscioCallbackHandler for dashboard observability
+    callbacks = [CapiscioCallbackHandler(emitter=events)] if CapiscioCallbackHandler and events else []
 
-    # Create agent and run
-    agent = create_research_agent(callback)
+    research_agent = create_research_agent()
 
     events.task_started(task_id, "research", {"query": text_content[:100]})
 
     try:
         result = await asyncio.to_thread(
-            agent.invoke,
-            {"messages": [HumanMessage(content=text_content)]}
+            research_agent.invoke,
+            {"messages": [HumanMessage(content=text_content)]},
+            {"callbacks": callbacks},
         )
 
         # Extract output from langgraph response
@@ -437,11 +385,10 @@ async def demo_mode():
     print("\n" + "="*60)
     print(f"🤖 {AGENT_NAME} - Interactive Demo Mode")
     print("="*60)
-    print("\n📊 Events visible at: https://app.capisc.io/events")
     print("Type 'quit' to exit\n")
 
-    callback = CapiscioCallbackHandler(events)
-    agent = create_research_agent(callback)
+    callbacks = [CapiscioCallbackHandler(emitter=events)] if CapiscioCallbackHandler and events else []
+    research_agent = create_research_agent()
 
     while True:
         try:
@@ -454,7 +401,10 @@ async def demo_mode():
             task_id = str(uuid.uuid4())[:8]
             events.task_started(task_id, "interactive", {"query": query})
 
-            result = agent.invoke({"messages": [HumanMessage(content=query)]})
+            result = research_agent.invoke(
+                {"messages": [HumanMessage(content=query)]},
+                {"callbacks": callbacks},
+            )
             messages = result.get("messages", [])
             output = messages[-1].content if messages else "No response"
 
@@ -481,43 +431,34 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.serve:
-        # Run as HTTP server
         uvicorn.run(app, host="0.0.0.0", port=args.port)
     else:
-        # Run interactive demo
-        # Initialize agent via CapiscIO.connect() - one-liner setup
-        if CAPISCIO_SDK_AVAILABLE:
+        # Interactive demo — guard.identity triggers connect()
+        identity = None
+        if guard:
             try:
-                agent = CapiscIO.connect(
-                    api_key=os.environ.get("CAPISCIO_API_KEY", ""),
-                    name=AGENT_NAME,
-                    server_url=CAPISCIO_SERVER,
-                    dev_mode=True,
-                    keys_dir=Path(os.path.dirname(os.path.abspath(__file__))) / ".capiscio" / "keys",
-                    agent_card=AGENT_CARD,
-                )
-                logger.info(f"🔑 Agent DID: {agent.did}")
+                identity = guard.identity
+                logger.info(f"🔑 Agent DID: {identity.did}")
             except Exception as e:
                 logger.warning(f"⚠️  CapiscIO identity not available: {e}")
 
-        # Initialize events for demo mode
         events = EventEmitter(
-            server_url=agent.server_url if agent else CAPISCIO_SERVER,
-            api_key=agent.api_key if agent else os.environ.get("CAPISCIO_API_KEY", ""),
-            agent_id=agent.agent_id if agent else "",
+            server_url=identity.server_url if identity else CAPISCIO_SERVER,
+            api_key=identity.api_key if identity else os.environ.get("CAPISCIO_API_KEY", ""),
+            agent_id=identity.agent_id if identity else "",
             agent_name=AGENT_NAME,
         )
 
         events.agent_started({
             "mode": "interactive",
             "framework": "langchain",
-            "did": agent.did if agent else None,
+            "did": identity.did if identity else None,
         })
 
         try:
             asyncio.run(demo_mode())
         finally:
-            if agent:
-                agent.close()
+            if identity:
+                identity.close()
             events.agent_stopped()
             events.close()

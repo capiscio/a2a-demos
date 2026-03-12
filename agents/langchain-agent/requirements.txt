@@ -8,7 +8,11 @@ langgraph>=0.2.0
 fastapi>=0.115.0
 uvicorn>=0.32.0
 
-# CapiscIO SDK
+# CapiscIO — langchain-capiscio wraps the SDK with LangChain-native APIs
+# For local dev (not yet on PyPI):
+#   pip install -e ../../../capiscio-langchain
+# Once published:
+#   langchain-capiscio>=0.1.0
 capiscio-sdk>=2.3.0
 
 # Shared event emitter (install from local path)

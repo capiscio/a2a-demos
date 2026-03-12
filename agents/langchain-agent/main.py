@@ -111,6 +111,9 @@ guard: Optional["CapiscioGuard"] = (
 # Global event emitter (for dashboard visibility)
 events: Optional[EventEmitter] = None
 
+# Resolved SimpleGuard instance — set once during lifespan, used by middleware
+_resolved_simple_guard = None
+
 
 # ==============================================================================
 # LangChain Tools
@@ -182,13 +185,14 @@ def create_research_agent():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
-    global events
+    global events, _resolved_simple_guard
 
     # guard.identity triggers CapiscIO.connect() on first access
     identity = None
     if guard:
         try:
             identity = guard.identity
+            _resolved_simple_guard = getattr(identity, "_guard", None)
             logger.info(f"🔑 Agent DID: {identity.did}")
             logger.info(f"🔐 Badge: {'acquired' if identity.badge else 'pending'}")
         except Exception as e:
@@ -237,7 +241,7 @@ if CAPISCIO_AVAILABLE and CapiscioMiddleware and guard:
     security_config = SecurityConfig.from_env()
     app.add_middleware(
         CapiscioMiddleware,
-        guard=lambda: getattr(guard.identity, "_guard", None) if guard else None,
+        guard=lambda: _resolved_simple_guard,
         config=security_config,
         exclude_paths=["/.well-known/agent.json", "/health"],
     )
@@ -251,8 +255,19 @@ if CAPISCIO_AVAILABLE and CapiscioMiddleware and guard:
 @app.get("/.well-known/agent.json")
 async def get_agent_card():
     """Serve the A2A Agent Card (Google A2A Protocol)."""
-    identity = guard.identity if guard else None
-    agent_did = identity.did if identity else "did:web:localhost:agents:langchain"
+    fallback_did = "did:web:localhost:agents:langchain"
+    agent_did = fallback_did
+
+    if guard:
+        try:
+            identity = guard.identity
+            if getattr(identity, "did", None):
+                agent_did = identity.did
+        except Exception as exc:
+            logger.warning(
+                "Failed to resolve CapiscIO identity for agent card; using fallback DID: %s",
+                exc,
+            )
 
     return {
         **AGENT_CARD,

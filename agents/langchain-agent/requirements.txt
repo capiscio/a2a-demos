@@ -10,7 +10,7 @@ uvicorn>=0.32.0
 
 # CapiscIO — langchain-capiscio wraps the SDK with LangChain-native APIs
 # For local dev (not yet on PyPI):
-#   pip install -e ../../../capiscio-langchain
+#   pip install -e ../../../langchain-capiscio
 # Once published:
 #   langchain-capiscio>=0.1.0
 capiscio-sdk>=2.3.0

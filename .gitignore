@@ -17,6 +17,8 @@ htmlcov/
 **/.capiscio/
 **/capiscio_keys/
 **/agent-card.json
+**/*.jwk
+**/*.jwt
 
 # IDE
 .vscode/

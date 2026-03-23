@@ -1,0 +1,19 @@
+# Lockdown Policy — emergency response
+#
+# Raises the global minimum trust level to EV (Extended Validation).
+# Only EV-badged agents can access ANY tool — all others are denied.
+#
+# Use case: incident response, compliance lockdown, or "red button"
+# scenarios where you need to immediately restrict all agent access.
+#
+# Expected outcomes with this policy active:
+#   Trusted (DV)  → get_price       → DENY  (DV < EV)
+#   Trusted (DV)  → place_order     → DENY  (DV < EV)
+#   Untrusted     → get_price       → DENY
+#   Untrusted     → place_order     → DENY
+
+version: "1"
+min_trust_level: "EV"
+allowed_dids: []
+denied_dids: []
+mcp_tools: []

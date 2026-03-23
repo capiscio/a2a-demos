@@ -1,0 +1,20 @@
+# Baseline Policy — trust levels as coded
+#
+# No org-level overrides. Per-tool trust levels from @guard
+# decorators apply as written by the tool developer:
+#
+#   get_price          → level 0 (open)
+#   place_order        → level 2 (DV+)
+#   cancel_all_orders  → level 4 (EV)
+#
+# Expected outcomes with this policy active:
+#   Trusted (DV)  → get_price       → ALLOW
+#   Trusted (DV)  → place_order     → ALLOW
+#   Untrusted     → get_price       → ALLOW
+#   Untrusted     → place_order     → DENY
+
+version: "1"
+min_trust_level: ""
+allowed_dids: []
+denied_dids: []
+mcp_tools: []

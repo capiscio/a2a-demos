@@ -1,19 +1,181 @@
 # CapiscIO Demos
 
-> Working examples of CapiscIO's "Let's Encrypt for AI" approach — cryptographic identity and trust badges for both **MCP servers** and **A2A agents**.
+> Working examples of CapiscIO's "Let's Encrypt for AI" approach — cryptographic identity, trust badges, and policy enforcement for **MCP servers** and **A2A agents**.
 
 ## Demos at a Glance
 
-| Demo | What it shows | Quick start |
-|------|---------------|-------------|
-| **[MCP Guard Demo](#-mcp-guard-demo)** | One-line server identity, per-tool trust levels, client verification | `cd mcp-demo && docker compose up` |
-| **[Agent Guard Demos](#-agent-guard-demos)** | 3 framework agents with DID, badges, and real-time events | `./scripts/setup.sh && ./scripts/run-agents.sh` |
+| Demo | What it shows | Time | Quick start |
+|------|---------------|------|-------------|
+| **[Demo One: Zero to Enforcement](#demo-one--zero-to-enforcement)** | `@guard` decorator, trust levels, badge-based access control | 5 min | `cd demo-one && ./setup.sh` |
+| **[Demo Two: Policy as Code](#demo-two--policy-as-code)** | Runtime policy changes alter enforcement — no code deploy | 10 min | `cd demo-two && ./setup.sh` |
+| **[MCP Guard Demo](#mcp-guard-demo)** | Server identity, per-tool trust, client verification | 5 min | `cd mcp-demo && docker compose up` |
+| **[Agent Guard Demos](#agent-guard-demos)** | 3 framework agents with DID, badges, real-time events | 15 min | `./scripts/setup.sh` |
 
-Both demos use the public CapiscIO registry at [registry.capisc.io](https://registry.capisc.io). Sign up free at [app.capisc.io](https://app.capisc.io).
+**New to CapiscIO?** Start with Demo One — it takes 5 minutes and shows the core concept.
 
 ---
 
-## 🔒 MCP Guard Demo
+## Prerequisites
+
+- Python 3.11+
+- A free CapiscIO account — sign up at [app.capisc.io](https://app.capisc.io)
+- API key from Dashboard → Settings → API Keys
+- An MCP server registered in the dashboard (for demo-one and demo-two)
+
+> **PyCon attendees:** Run `./setup.sh` at home before the conference. It pre-downloads a ~15 MB binary that the demos need. Conference Wi-Fi is unreliable.
+
+---
+
+## Demo One — Zero to Enforcement
+
+**"5 minutes from zero to trust-enforced MCP tools."**
+
+An MCP server with three tools at different trust levels. A trusted agent (with a badge) can call restricted tools; an untrusted agent (no badge) gets denied.
+
+### What you'll see
+
+| Scenario | Agent | Tool | Trust Level | Result |
+|----------|-------|------|-------------|--------|
+| 1 | Trusted (DV badge) | `get_price` | 0 (open) | ALLOW |
+| 2 | Trusted (DV badge) | `place_order` | 2 (DV+) | ALLOW |
+| 3 | Untrusted (no badge) | `get_price` | 0 (open) | ALLOW |
+| 4 | Untrusted (no badge) | `place_order` | 2 (DV+) | **DENY** |
+
+### Setup
+
+```bash
+cd demo-one
+./setup.sh              # Creates venv, installs deps, downloads binary
+cp .env.example .env    # Fill in your API key + server ID
+```
+
+### Run
+
+```bash
+source .venv/bin/activate
+python run_demo.py
+```
+
+### Key code
+
+**Server** — one decorator per tool:
+```python
+@server.tool(min_trust_level=0)
+async def get_price(sku: str) -> str: ...
+
+@server.tool(min_trust_level=2)
+async def place_order(sku: str, quantity: int) -> str: ...
+
+@server.tool(min_trust_level=4)
+async def cancel_all_orders() -> str: ...
+```
+
+**Agent** — one line to connect:
+```python
+identity = CapiscIO.connect(api_key=..., auto_badge=True)
+```
+
+### Files
+
+```
+demo-one/
+├── server/main.py          # MCP server with 3 guarded tools
+├── agents/
+│   ├── trusted_agent.py    # Badged agent (auto_badge=True)
+│   └── untrusted_agent.py  # No-badge agent (auto_badge=False)
+├── run_demo.py             # Orchestrator: 4 scenarios
+├── setup.sh                # Environment setup + binary download
+├── .env.example            # Credential template
+└── requirements.txt
+```
+
+---
+
+## Demo Two — Policy as Code
+
+**"Same code, three different enforcement outcomes — changed by policy, not deploy."**
+
+Shows how org-level policy changes alter trust enforcement at runtime. The presenter switches policies in the dashboard between phases; the same agents and server produce different ALLOW/DENY results.
+
+### Three Phases
+
+**Phase 1 — Baseline** (trust levels as coded)
+| Agent | get_price | place_order |
+|-------|-----------|-------------|
+| Trusted (DV) | ALLOW | ALLOW |
+| Untrusted | ALLOW | **DENY** |
+
+**Phase 2 — Lockdown** (global min raised to EV)
+| Agent | get_price | place_order |
+|-------|-----------|-------------|
+| Trusted (DV) | **DENY** | **DENY** |
+| Untrusted | **DENY** | **DENY** |
+
+**Phase 3 — Selective** (get_price overridden to require DV)
+| Agent | get_price | place_order |
+|-------|-----------|-------------|
+| Trusted (DV) | ALLOW | ALLOW |
+| Untrusted | **DENY** | **DENY** |
+
+### Setup
+
+```bash
+cd demo-two
+./setup.sh
+cp .env.example .env    # Fill in API key, server ID, org ID, admin JWT
+```
+
+Create the three policy proposals:
+```bash
+source .venv/bin/activate
+python scripts/setup_policies.py
+```
+
+### Run
+
+```bash
+python run_demo.py
+```
+
+The script pauses between phases so you can switch policies in the dashboard.
+
+### Policy files
+
+```yaml
+# policies/lockdown.yaml — emergency response
+version: "1"
+min_trust_level: "EV"
+```
+
+```yaml
+# policies/selective.yaml — per-tool override
+version: "1"
+mcp_tools:
+  - tool: "get_price"
+    min_trust_level: "DV"
+```
+
+### Files
+
+```
+demo-two/
+├── policies/
+│   ├── baseline.yaml       # Default enforcement
+│   ├── lockdown.yaml       # Global min = EV (deny all)
+│   └── selective.yaml      # get_price overridden to DV
+├── scripts/
+│   └── setup_policies.py   # Creates policy proposals via admin JWT
+├── server/main.py           # Same MCP server as demo-one
+├── agents/                  # Same agents as demo-one
+├── run_demo.py              # Interactive 3-phase orchestrator
+├── setup.sh
+├── .env.example
+└── requirements.txt
+```
+
+---
+
+## MCP Guard Demo
 
 **"Let's Encrypt for MCP servers"** — automatic cryptographic identity, trust badges, and per-tool access control.
 
@@ -37,7 +199,7 @@ docker compose up --build       # Starts registry, MCP server, and client
 
 ---
 
-## 🤖 Agent Guard Demos
+## Agent Guard Demos
 
 Run **3 AI agents** built with different frameworks, all secured with CapiscIO trust badges:
 
@@ -47,7 +209,7 @@ Run **3 AI agents** built with different frameworks, all secured with CapiscIO t
 
 All agents use `CapiscIO.connect()` to get a cryptographic identity (DID), register with the registry, and participate in trusted agent-to-agent communication. Watch their **event logs in real-time** via the [CapiscIO dashboard](https://app.capisc.io).
 
-## 🚀 Quick Start
+### Quick Start
 
 ### Prerequisites
 
@@ -132,7 +294,7 @@ Open the [CapiscIO dashboard](https://app.capisc.io/events) to see agent registr
 
 ---
 
-## 🏃 Agent CLI Reference
+### Agent CLI Reference
 
 All agents share the same CLI:
 
@@ -171,7 +333,7 @@ python scripts/demo_driver.py [OPTIONS]
 
 ---
 
-## ⚙️ What Happens on Startup
+### What Happens on Startup
 
 When an agent starts with `--serve`, the SDK (`CapiscIO.connect()`) automatically:
 
@@ -185,20 +347,27 @@ When an agent starts with `--serve`, the SDK (`CapiscIO.connect()`) automaticall
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 a2a-demos/
-├── mcp-demo/                     # MCP Guard demo
+├── demo-one/                     # Zero to Enforcement (5 min)
+│   ├── server/main.py            # MCP server with 3 guarded tools
+│   ├── agents/                   # Trusted + untrusted agents
+│   ├── run_demo.py               # 4-scenario orchestrator
+│   └── setup.sh                  # One-command setup
+├── demo-two/                     # Policy as Code (10 min)
+│   ├── policies/                 # 3 YAML policy files
+│   ├── scripts/setup_policies.py # Policy creation via admin JWT
+│   ├── run_demo.py               # Interactive 3-phase orchestrator
+│   └── setup.sh
+├── mcp-demo/                     # MCP Guard demo (Docker)
 │   ├── server/main.py            # Guarded MCP filesystem server
 │   ├── client/main.py            # Client with server verification
 │   ├── docker-compose.yml        # Full stack orchestration
 │   └── README.md                 # Detailed MCP demo docs
 ├── agents/
 │   ├── langchain-agent/          # LangChain research agent (port 8001)
-│   │   ├── main.py               # Agent implementation
-│   │   ├── requirements.txt      # Python dependencies
-│   │   └── .venv/                # Created by setup.sh
 │   ├── crewai-agent/             # CrewAI multi-agent crew (port 8002)
 │   └── langgraph-agent/          # LangGraph stateful agent (port 8003)
 ├── scripts/
@@ -207,11 +376,11 @@ a2a-demos/
 │   └── demo_driver.py            # Send A2A tasks between agents
 ├── shared/
 │   └── capiscio_events/          # Shared event emission module
-├── .env.example                  # Environment template (all vars documented)
+├── .env.example                  # Environment template
 └── README.md
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -241,7 +410,7 @@ a2a-demos/
 
 Each agent gets its own cryptographic identity (DID) and key pair. Badges are CA-signed by the CapiscIO registry.
 
-## 🔐 Security Configuration
+## Security Configuration
 
 Control badge enforcement via environment variables:
 
@@ -261,7 +430,7 @@ CAPISCIO_FAIL_MODE=block
 CAPISCIO_MIN_TRUST_LEVEL=1
 ```
 
-## 📊 Event Types
+## Event Types
 
 Events visible in the dashboard:
 
@@ -276,7 +445,7 @@ Events visible in the dashboard:
 | `a2a.response` | A2A response received |
 | `error` | Something went wrong |
 
-## ✅ Quick Test
+## Quick Test
 
 After starting agents, verify everything works:
 

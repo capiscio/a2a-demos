@@ -103,6 +103,36 @@ jobs:
           # Test that main.py can be imported (without running server)
           python -c "import sys; import main; print('✓ ${{ matrix.agent }} imports successfully')"
 
+  install-demo-one:
+    name: Install Demo One Dependencies
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: 'demo-one/requirements.txt'
+
+      - name: Install demo-one dependencies
+        run: |
+          cd demo-one
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify imports
+        run: |
+          python -c "from capiscio_sdk import CapiscIO; print('✓ capiscio-sdk imports')"
+          python -c "from capiscio_mcp import MCPServerIdentity; print('✓ capiscio-mcp imports')"
+          python -c "from capiscio_mcp.integrations.mcp import CapiscioMCPServer, CapiscioMCPClient; print('✓ MCP integration imports')"
+
   validate-agent-cards:
     name: Validate Agent Cards
     runs-on: ubuntu-latest
@@ -120,7 +150,7 @@ jobs:
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [lint, install-shared-module, install-agent-dependencies]
+    needs: [lint, install-shared-module, install-agent-dependencies, install-demo-one]
     if: always()
     
     steps:
@@ -128,7 +158,8 @@ jobs:
         run: |
           if [ "${{ needs.lint.result }}" = "failure" ] || \
              [ "${{ needs.install-shared-module.result }}" = "failure" ] || \
-             [ "${{ needs.install-agent-dependencies.result }}" = "failure" ]; then
+             [ "${{ needs.install-agent-dependencies.result }}" = "failure" ] || \
+             [ "${{ needs.install-demo-one.result }}" = "failure" ]; then
             echo "❌ CI checks failed"
             exit 1
           else

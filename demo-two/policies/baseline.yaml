@@ -1,11 +1,11 @@
 # Baseline Policy — trust levels as coded
 #
-# No org-level overrides. Per-tool trust levels from @guard
-# decorators apply as written by the tool developer:
+# Mirrors the developer's @guard levels so the PDP enforces
+# the same rules the inline path would:
 #
-#   get_price          → level 0 (open)
-#   place_order        → level 2 (DV+)
-#   cancel_all_orders  → level 4 (EV)
+#   get_price          → open (no requirement)
+#   place_order        → DV   (badge with PoP → DV-equivalent)
+#   cancel_all_orders  → EV   (only extended-validated agents)
 #
 # Expected outcomes with this policy active:
 #   Trusted (DV)  → get_price       → ALLOW
@@ -17,4 +17,12 @@ version: "1"
 min_trust_level: ""
 allowed_dids: []
 denied_dids: []
-mcp_tools: []
+mcp_tools:
+  - tool: "place_order"
+    min_trust_level: "DV"
+    allowed_dids: []
+    denied_dids: []
+  - tool: "cancel_all_orders"
+    min_trust_level: "EV"
+    allowed_dids: []
+    denied_dids: []

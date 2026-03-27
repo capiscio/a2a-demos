@@ -6,8 +6,8 @@ Same MCP server as demo-one with three tools at different trust levels:
   Tool              Min Trust Level   Who can call it
   ──────────────────────────────────────────────────────
   get_price          0 (open)         Any agent
-  place_order        2 (DV+)          Domain-validated agents
-  cancel_all_orders  4 (EV)           Extended-validation agents
+  place_order        1 (PoP/REG+)     Registered agents with badge
+  cancel_all_orders  2 (DV+)          Domain-validated agents
 
 What's different in demo-two: the ORG POLICY can override these levels
 at runtime.  The @guard decorator queries the embedded PDP, which
@@ -71,10 +71,10 @@ async def build_server() -> CapiscioMCPServer:
             return f"Unknown SKU: {sku}"
         return f"{item['name']}: ${item['price']:.2f}"
 
-    # ── Trust Level 2: requires domain-validated (DV) badge ───────────
-    @server.tool(min_trust_level=2)
+    # ── Trust Level 1: requires registered badge (PoP) ────────────────
+    @server.tool(min_trust_level=1)
     async def place_order(sku: str, quantity: int) -> str:
-        """Place an order for a product. Requires DV+ trust level."""
+        """Place an order for a product. Requires PoP+ trust level."""
         item = CATALOG.get(sku.upper())
         if not item:
             return f"Unknown SKU: {sku}"
@@ -90,10 +90,10 @@ async def build_server() -> CapiscioMCPServer:
         ORDERS.append(order)
         return f"Order #{order['id']} placed: {quantity}x {item['name']} = ${order['total']:.2f}"
 
-    # ── Trust Level 4: requires extended-validation (EV) badge ────────
-    @server.tool(min_trust_level=4)
+    # ── Trust Level 2: requires domain-validated (DV) badge ───────────
+    @server.tool(min_trust_level=2)
     async def cancel_all_orders() -> str:
-        """Cancel all pending orders. Requires EV trust level."""
+        """Cancel all pending orders. Requires DV trust level."""
         count = len(ORDERS)
         ORDERS.clear()
         return f"Cancelled {count} order(s)"

@@ -2,8 +2,9 @@
 Demo Two — Trusted Agent.
 
 Connects to CapiscIO with a badge (auto_badge=True).
-With a valid DV badge, this agent can access tools up to trust level 2
-under the baseline policy — but policy changes can raise or lower the bar.
+With a valid badge (PoP → DV-equivalent), this agent can access tools
+up to trust level DV under the baseline policy — but policy changes
+can raise or lower the bar.
 
 This module is imported by run_demo.py — not run directly.
 """

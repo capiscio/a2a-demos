@@ -22,3 +22,11 @@ mcp_tools:
     min_trust_level: "DV"
     allowed_dids: []
     denied_dids: []
+  - tool: "place_order"
+    min_trust_level: "DV"
+    allowed_dids: []
+    denied_dids: []
+  - tool: "cancel_all_orders"
+    min_trust_level: "EV"
+    allowed_dids: []
+    denied_dids: []

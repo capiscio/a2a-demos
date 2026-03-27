@@ -1,0 +1,10 @@
+# CapiscIO Demo One — "Zero to Enforcement"
+#
+# Installs both SDK and MCP packages.
+# The capiscio-core binary is downloaded automatically on first use,
+# or pre-downloaded by running ./setup.sh.
+
+capiscio-sdk>=2.5.0
+capiscio-mcp[mcp,crypto]>=2.5.0
+python-dotenv>=1.0.0
+httpx>=0.27.0

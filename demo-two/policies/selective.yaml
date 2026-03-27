@@ -1,0 +1,32 @@
+# Selective Policy — per-tool override without code changes
+#
+# The developer coded get_price as open (min_trust_level=0), but
+# the platform admin decides it should require DV validation.
+# This override takes effect instantly — no code deploy needed.
+#
+# Use case: a tool that was originally public now handles sensitive
+# data; compliance requires restricting access at the platform level.
+#
+# Expected outcomes with this policy active:
+#   Trusted (DV)  → get_price       → ALLOW  (DV ≥ DV)
+#   Trusted (DV)  → place_order     → ALLOW  (DV ≥ DV)
+#   Untrusted     → get_price       → DENY   (no badge < DV)
+#   Untrusted     → place_order     → DENY
+
+version: "1"
+min_trust_level: ""
+allowed_dids: []
+denied_dids: []
+mcp_tools:
+  - tool: "get_price"
+    min_trust_level: "DV"
+    allowed_dids: []
+    denied_dids: []
+  - tool: "place_order"
+    min_trust_level: "DV"
+    allowed_dids: []
+    denied_dids: []
+  - tool: "cancel_all_orders"
+    min_trust_level: "EV"
+    allowed_dids: []
+    denied_dids: []

@@ -1,0 +1,28 @@
+# Baseline Policy — trust levels as coded
+#
+# Mirrors the developer's @guard levels so the PDP enforces
+# the same rules the inline path would:
+#
+#   get_price          → open (no requirement)
+#   place_order        → DV   (badge with PoP → DV-equivalent)
+#   cancel_all_orders  → EV   (only extended-validated agents)
+#
+# Expected outcomes with this policy active:
+#   Trusted (DV)  → get_price       → ALLOW
+#   Trusted (DV)  → place_order     → ALLOW
+#   Untrusted     → get_price       → ALLOW
+#   Untrusted     → place_order     → DENY
+
+version: "1"
+min_trust_level: ""
+allowed_dids: []
+denied_dids: []
+mcp_tools:
+  - tool: "place_order"
+    min_trust_level: "DV"
+    allowed_dids: []
+    denied_dids: []
+  - tool: "cancel_all_orders"
+    min_trust_level: "EV"
+    allowed_dids: []
+    denied_dids: []

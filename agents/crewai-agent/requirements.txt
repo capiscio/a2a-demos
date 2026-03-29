@@ -2,6 +2,10 @@
 crewai>=0.80.0
 crewai-tools>=0.14.0
 
+# Pin litellm to exclude compromised versions (1.82.7, 1.82.8)
+# See: https://github.com/BerriAI/litellm/issues/9482
+litellm>=1.61.20,<=1.82.6
+
 # HTTP server for A2A endpoints
 fastapi>=0.115.0
 uvicorn>=0.32.0

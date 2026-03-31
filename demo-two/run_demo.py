@@ -145,7 +145,7 @@ async def call_tool(badge: str | None, tool_name: str, args: dict) -> tuple[str,
                              "badge_missing", "badge_invalid", "badge_expired",
                              "badge_revoked", "not_allowed", "issuer_untrusted",
                              "policy_denied")
-            if any(kw in lower for kw in deny_keywords):
+            if is_error or any(kw in lower for kw in deny_keywords):
                 return ("DENY", text)
             if is_error:
                 return ("ERROR", text)
@@ -219,9 +219,10 @@ async def run_demo() -> None:
     trusted = trusted_agent.connect()
     trusted_badge = trusted.get_badge()
     if not trusted_badge:
+        import time
         print("    Badge: ⏳ waiting for BadgeKeeper...")
         for _ in range(10):
-            await asyncio.sleep(1)
+            time.sleep(1)
             trusted_badge = trusted.get_badge()
             if trusted_badge:
                 break

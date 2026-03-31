@@ -282,17 +282,6 @@ async def lifespan(app: FastAPI):
             )
             logger.info(f"🔑 Agent DID: {agent.did}")
             logger.info(f"🔐 Badge: {'acquired' if agent.badge else 'pending'}")
-
-            # Add SDK middleware for badge enforcement
-            if CapiscioMiddleware and hasattr(agent, '_guard') and agent._guard:
-                security_config = SecurityConfig.from_env()
-                app.add_middleware(
-                    CapiscioMiddleware,
-                    guard=agent._guard,
-                    config=security_config,
-                    exclude_paths=["/.well-known/agent.json", "/health"],
-                )
-                logger.info(f"🛡️  Security middleware enabled (require_signatures={security_config.downstream.require_signatures})")
         except Exception as e:
             logger.warning(f"⚠️  CapiscIO identity setup failed: {e}")
             agent = None

@@ -99,6 +99,7 @@ guard: Optional["CapiscioGuard"] = (
     CapiscioGuard(
         mode="log",
         connect_kwargs={
+            "name": AGENT_NAME,
             "dev_mode": SECURITY_MODE == "dev",
             "keys_dir": KEYS_DIR,
             "agent_card": AGENT_CARD,

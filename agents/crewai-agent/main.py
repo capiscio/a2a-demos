@@ -30,13 +30,16 @@ from capiscio_events import EventEmitter, EventSeverity, EventType
 try:
     from capiscio_sdk import CapiscIO, SecurityConfig
     from capiscio_sdk.connect import AgentIdentity
-    from capiscio_sdk.integrations.fastapi import CapiscioMiddleware
     CAPISCIO_SDK_AVAILABLE = True
 except ImportError:
     CAPISCIO_SDK_AVAILABLE = False
     CapiscIO = None
     AgentIdentity = None
     SecurityConfig = None
+
+try:
+    from capiscio_sdk.integrations.fastapi import CapiscioMiddleware
+except ImportError:
     CapiscioMiddleware = None
 
 # CrewAI imports

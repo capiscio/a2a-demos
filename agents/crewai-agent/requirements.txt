@@ -1,6 +1,6 @@
 # CrewAI framework
-crewai>=0.80.0
-crewai-tools>=0.14.0
+crewai>=1.12.0,<2.0.0
+crewai-tools>=1.12.0,<2.0.0
 
 # Pin litellm to exclude compromised versions (1.82.7, 1.82.8)
 # See: https://github.com/BerriAI/litellm/issues/9482

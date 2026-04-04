@@ -125,21 +125,40 @@ async def call_tool(badge: str | None, tool_name: str, args: dict) -> tuple[str,
         ) as client:
             result = await client.call_tool(tool_name, args)
 
+            # Check isError on the result object (CallToolResult)
+            is_error = getattr(result, "isError", False)
+
             if isinstance(result, list):
                 text = " ".join(
                     getattr(item, "text", str(item)) for item in result
+                )
+            elif hasattr(result, "content"):
+                # CallToolResult — extract text from content list
+                text = " ".join(
+                    getattr(item, "text", str(item)) for item in result.content
                 )
             else:
                 text = str(result)
 
             lower = text.lower()
-            if "denied" in lower or "insufficient" in lower or "trust" in lower:
+            deny_keywords = ("denied", "insufficient", "trust",
+                             "badge_missing", "badge_invalid", "badge_expired",
+                             "badge_revoked", "not_allowed", "issuer_untrusted",
+                             "policy_denied")
+            if any(kw in lower for kw in deny_keywords):
                 return ("DENY", text)
+            if is_error:
+                return ("ERROR", text)
             return ("ALLOW", text)
 
     except Exception as exc:
         msg = str(exc)
-        if "denied" in msg.lower() or "guard" in msg.lower() or "trust" in msg.lower():
+        lower = msg.lower()
+        deny_keywords = ("denied", "guard", "trust",
+                         "badge_missing", "badge_invalid", "badge_expired",
+                         "badge_revoked", "not_allowed", "issuer_untrusted",
+                         "policy_denied")
+        if any(kw in lower for kw in deny_keywords):
             return ("DENY", msg)
         return ("ERROR", msg)
 
@@ -199,6 +218,13 @@ async def run_demo() -> None:
     print("\n  Connecting trusted agent (with DV badge)...")
     trusted = trusted_agent.connect()
     trusted_badge = trusted.get_badge()
+    if not trusted_badge:
+        print("    Badge: ⏳ waiting for BadgeKeeper...")
+        for _ in range(10):
+            await asyncio.sleep(1)
+            trusted_badge = trusted.get_badge()
+            if trusted_badge:
+                break
     print(f"    DID  : {trusted.did}")
     print(f"    Badge: {'✓ obtained' if trusted_badge else '✗ none'}")
 

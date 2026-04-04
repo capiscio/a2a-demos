@@ -34,13 +34,16 @@ from capiscio_events import EventEmitter, EventType
 try:
     from langchain_capiscio import CapiscioCallbackHandler, CapiscioGuard
     from capiscio_sdk import SecurityConfig
-    from capiscio_sdk.integrations.fastapi import CapiscioMiddleware
     CAPISCIO_AVAILABLE = True
 except ImportError:
     CAPISCIO_AVAILABLE = False
     CapiscioGuard = None
     CapiscioCallbackHandler = None
     SecurityConfig = None
+
+try:
+    from capiscio_sdk.integrations.fastapi import CapiscioMiddleware
+except ImportError:
     CapiscioMiddleware = None
 
 # LangChain imports
@@ -99,6 +102,7 @@ guard: Optional["CapiscioGuard"] = (
     CapiscioGuard(
         mode="log",
         connect_kwargs={
+            "name": AGENT_NAME,
             "dev_mode": SECURITY_MODE == "dev",
             "keys_dir": KEYS_DIR,
             "agent_card": AGENT_CARD,

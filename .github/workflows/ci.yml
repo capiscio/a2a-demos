@@ -95,7 +95,11 @@ jobs:
         run: |
           cd agents/${{ matrix.agent }}
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install uv
+          # Override protobuf constraint: crewai's opentelemetry wants <6.0
+          # but capiscio-sdk needs >=6.33.5. Works fine at runtime with 6.x.
+          echo 'protobuf>=6.33.5' > /tmp/overrides.txt
+          uv pip install --system --override /tmp/overrides.txt -r requirements.txt
       
       - name: Verify imports
         run: |

@@ -31,13 +31,16 @@ from capiscio_events import EventEmitter, EventType
 try:
     from capiscio_sdk import CapiscIO, SecurityConfig
     from capiscio_sdk.connect import AgentIdentity
-    from capiscio_sdk.integrations.fastapi import CapiscioMiddleware
     CAPISCIO_SDK_AVAILABLE = True
 except ImportError:
     CAPISCIO_SDK_AVAILABLE = False
     CapiscIO = None
     AgentIdentity = None
     SecurityConfig = None
+
+try:
+    from capiscio_sdk.integrations.fastapi import CapiscioMiddleware
+except ImportError:
     CapiscioMiddleware = None
 
 # LangGraph imports
@@ -366,16 +369,6 @@ async def lifespan(app: FastAPI):
             )
             logger.info(f"🔑 Agent DID: {agent.did}")
             logger.info(f"🔐 Badge: {'acquired' if agent.badge else 'pending'}")
-
-            # Add SDK middleware for badge enforcement
-            if CapiscioMiddleware and security_config and hasattr(agent, '_guard') and agent._guard:
-                app.add_middleware(
-                    CapiscioMiddleware,
-                    guard=agent._guard,
-                    config=security_config,
-                    exclude_paths=["/.well-known/agent.json", "/health"],
-                )
-                logger.info(f"🛡️  Security middleware enabled (require_signatures={security_config.downstream.require_signatures})")
         except Exception as e:
             logger.warning(f"⚠️  CapiscIO identity setup failed: {e}")
             agent = None
@@ -412,10 +405,8 @@ app = FastAPI(
     description="A2A-compliant stateful agent built with LangGraph",
     lifespan=lifespan,
 )
-if CapiscioMiddleware:
-    # Note: Middleware will be added in lifespan after agent is initialized
-    # For now, we'll handle it manually in routes since we need the guard instance
-    pass
+# Note: Middleware requires guard which is only available after connect().
+# Badge enforcement is handled in the /tasks/send endpoint via verify_badge_with_sdk().
 
 
 @app.get("/.well-known/agent.json")

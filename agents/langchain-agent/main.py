@@ -140,9 +140,16 @@ def get_current_time() -> str:
 def calculate(expression: str) -> str:
     """Evaluate a mathematical expression."""
     try:
-        # Safe eval for simple math
-        allowed_names = {"abs": abs, "round": round, "min": min, "max": max}
-        result = eval(expression, {"__builtins__": {}}, allowed_names)
+        import ast
+        # Use ast.literal_eval for safe evaluation of numeric expressions
+        # For more complex math, parse the AST and only allow safe operations
+        tree = ast.parse(expression, mode='eval')
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Call, ast.Attribute, ast.Import, ast.ImportFrom)):
+                return f"Error: unsafe operation in expression"
+        result = eval(compile(tree, '<calc>', 'eval'), {"__builtins__": {}}, {
+            "abs": abs, "round": round, "min": min, "max": max,
+        })
         return str(result)
     except Exception as e:
         return f"Error: {e}"

@@ -53,11 +53,25 @@ async def build_server() -> CapiscioMCPServer:
 
     # ── Tool definitions ──────────────────────────────────────────────────
 
+    # Restrict filesystem tools to a safe demo directory
+    ALLOWED_ROOT = os.environ.get("DEMO_ALLOWED_ROOT", "/tmp/capiscio-demo")
+    os.makedirs(ALLOWED_ROOT, exist_ok=True)
+
+    def _safe_path(user_path: str) -> str:
+        """Resolve user_path and ensure it's within ALLOWED_ROOT."""
+        resolved = os.path.realpath(os.path.join(ALLOWED_ROOT, user_path))
+        if not resolved.startswith(os.path.realpath(ALLOWED_ROOT)):
+            raise ValueError(f"Path traversal denied: {user_path!r} resolves outside allowed root")
+        return resolved
+
     @server.tool(min_trust_level=0)
     async def list_files(directory: str) -> list:
         """List files in a directory (open to any caller, trust level 0)."""
         try:
-            return sorted(os.listdir(directory))
+            safe_dir = _safe_path(directory)
+            return sorted(os.listdir(safe_dir))
+        except ValueError as e:
+            return [f"Error: {e}"]
         except FileNotFoundError:
             return [f"Error: directory '{directory}' not found"]
         except PermissionError:
@@ -66,13 +80,15 @@ async def build_server() -> CapiscioMCPServer:
     @server.tool(min_trust_level=2)
     async def read_file(path: str) -> str:
         """Read a file's contents (requires trust level 2+)."""
-        with open(path) as fh:
+        safe = _safe_path(path)
+        with open(safe) as fh:
             return fh.read()
 
     @server.tool(min_trust_level=3)
     async def write_file(path: str, content: str) -> str:
         """Write content to a file (requires trust level 3+)."""
-        with open(path, "w") as fh:
+        safe = _safe_path(path)
+        with open(safe, "w") as fh:
             fh.write(content)
         return f"Written {len(content)} bytes to {path}"
 

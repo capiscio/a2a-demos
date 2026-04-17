@@ -55,12 +55,13 @@ async def build_server() -> CapiscioMCPServer:
 
     # Restrict filesystem tools to a safe demo directory
     ALLOWED_ROOT = os.environ.get("DEMO_ALLOWED_ROOT", "/tmp/capiscio-demo")
-    os.makedirs(ALLOWED_ROOT, exist_ok=True)
+    allowed_root = os.path.realpath(ALLOWED_ROOT)
+    os.makedirs(allowed_root, exist_ok=True)
 
     def _safe_path(user_path: str) -> str:
         """Resolve user_path and ensure it's within ALLOWED_ROOT."""
-        resolved = os.path.realpath(os.path.join(ALLOWED_ROOT, user_path))
-        if not resolved.startswith(os.path.realpath(ALLOWED_ROOT)):
+        resolved = os.path.realpath(os.path.join(allowed_root, user_path))
+        if resolved != allowed_root and not resolved.startswith(allowed_root + os.sep):
             raise ValueError(f"Path traversal denied: {user_path!r} resolves outside allowed root")
         return resolved
 

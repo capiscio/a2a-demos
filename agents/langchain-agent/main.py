@@ -146,7 +146,7 @@ def calculate(expression: str) -> str:
         tree = ast.parse(expression, mode='eval')
         for node in ast.walk(tree):
             if isinstance(node, (ast.Call, ast.Attribute, ast.Import, ast.ImportFrom)):
-                return f"Error: unsafe operation in expression"
+                return "Error: unsafe operation in expression"
         result = eval(compile(tree, '<calc>', 'eval'), {"__builtins__": {}}, {
             "abs": abs, "round": round, "min": min, "max": max,
         })

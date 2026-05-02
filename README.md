@@ -192,7 +192,8 @@ demo-two/
 ```bash
 cd mcp-demo
 cp .env.example .env            # Set CAPISCIO_SERVER_ID + CAPISCIO_API_KEY
-docker compose up --build       # Starts registry, MCP server, and client
+docker compose up --build       # Starts MCP server
+docker compose run --rm mcp-client  # Run the client (separate terminal)
 ```
 
 **→ Full setup, architecture, and expected output: [`mcp-demo/README.md`](mcp-demo/README.md)**

@@ -259,7 +259,7 @@ async def run_demo() -> None:
     print(f"  Switch to the {BOLD}lockdown{RESET} policy in the dashboard:")
     print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
     print(f"    2. Approve the {BOLD}lockdown{RESET} policy proposal")
-    print(f"    3. Wait a few seconds for the PDP bundle to refresh")
+    print("    3. Wait a few seconds for the PDP bundle to refresh")
     print(f"{YELLOW}{'─' * 60}{RESET}")
     input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
 
@@ -285,7 +285,7 @@ async def run_demo() -> None:
     print(f"  Switch to the {BOLD}selective{RESET} policy in the dashboard:")
     print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
     print(f"    2. Approve the {BOLD}selective{RESET} policy proposal")
-    print(f"    3. Wait a few seconds for the PDP bundle to refresh")
+    print("    3. Wait a few seconds for the PDP bundle to refresh")
     print(f"{YELLOW}{'─' * 60}{RESET}")
     input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
 

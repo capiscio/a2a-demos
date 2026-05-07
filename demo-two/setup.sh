@@ -64,7 +64,7 @@ echo ""
 if [ -f ".env" ]; then
     echo "✓  .env file found"
 else
-    cp .env.example .env
+    cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
     echo "⚠️  Created .env from .env.example — edit it with your credentials:"
     echo "    $(pwd)/.env"
     echo ""

@@ -133,9 +133,12 @@ fi
 echo ""
 if [ "$ENV_SCAFFOLDED" = true ]; then
 echo "Next steps:"
-echo "   1. Edit the .env files with your credentials:"
-echo "      - CAPISCIO_API_KEY (from app.capisc.io → Settings → API Keys)"
-echo "      - OPENAI_API_KEY (required for agents)"
+echo "   1. Edit the generated .env files with your credentials."
+echo "      Each demo has different required fields — open the .env to see them."
+echo "      Common fields:"
+echo "        - CAPISCIO_API_KEY  (from app.capisc.io → Settings → API Keys)"
+echo "        - OPENAI_API_KEY    (required for agents)"
+echo "        - CAPISCIO_SERVER_ID (demo-one, demo-two: from Dashboard → MCP Servers)"
 else
 echo "Next steps:"
 echo "   1. Verify your .env credentials are current"

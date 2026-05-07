@@ -114,6 +114,9 @@ async def revoke_badge_via_api(badge_token: str) -> bool:
 
     server_url = os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io")
     api_key = os.environ.get("CAPISCIO_API_KEY", "")
+    if not api_key:
+        print(f"    {RED}✗{RESET} CAPISCIO_API_KEY not set — cannot revoke badge")
+        return False
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(

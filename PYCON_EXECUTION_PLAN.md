@@ -146,65 +146,22 @@ result_line(outcome, detail)
 
 ---
 
-### 2.2 Automate Policy Switching in Demo Two
+### 2.2 ~~Automate Policy Switching in Demo Two~~ (DECIDED: Manual Only)
 
-**Why**: The manual "go to the dashboard and click approve" step kills the demo flow for videos.
+**Decision**: After review, the `--auto` mode was removed. Policy switching is always manual
+with clear numbered instructions for the presenter. This keeps the demo authentic — the
+audience sees the real dashboard workflow.
 
-**Action**: Add a `--auto` flag to `demo-two/run_demo.py` that calls the policy API directly:
-
-```python
-import httpx
-
-async def activate_policy(policy_name: str) -> bool:
-    """Activate a policy by approving it via the admin API."""
-    admin_jwt = os.environ.get("CAPISCIO_ADMIN_JWT")
-    org_id = os.environ.get("CAPISCIO_ORG_ID")
-    server_url = os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io")
-    
-    if not admin_jwt or not org_id:
-        return False
-    
-    # Read the policy file
-    policy_path = os.path.join(os.path.dirname(__file__), "policies", f"{policy_name}.yaml")
-    with open(policy_path) as f:
-        yaml_content = f.read()
-    
-    async with httpx.AsyncClient() as client:
-        # Create policy proposal
-        resp = await client.post(
-            f"{server_url}/v1/orgs/{org_id}/policy/org",
-            json={"yaml_content": yaml_content},
-            headers={
-                "Authorization": f"Bearer {admin_jwt}",
-                "Content-Type": "application/json",
-            },
-        )
-        if resp.status_code not in (200, 201):
-            print(f"  ⚠️  Policy creation failed: {resp.status_code}")
-            return False
-        
-        proposal_id = resp.json().get("id") or resp.json().get("proposal_id")
-        
-        # Approve it
-        resp = await client.post(
-            f"{server_url}/v1/orgs/{org_id}/policy/proposals/{proposal_id}/approve",
-            headers={"Authorization": f"Bearer {admin_jwt}"},
-        )
-        return resp.status_code in (200, 204)
+The demo pauses between phases with:
 ```
+ACTION REQUIRED:
+  Switch to the lockdown policy in the dashboard:
+    1. Open https://app.capisc.io → Policies
+    2. Approve the lockdown policy proposal
+    3. Wait a few seconds for the PDP bundle to refresh
 
-Modify the phase transitions:
-- If `--auto` flag is set AND `CAPISCIO_ADMIN_JWT` is available: call `activate_policy()` and sleep 3s for PDP bundle refresh
-- Otherwise: keep the existing manual `input()` pause
-
-Add argparse to `run_demo.py`:
-```python
-parser = argparse.ArgumentParser()
-parser.add_argument("--auto", action="store_true", help="Auto-switch policies via API (requires CAPISCIO_ADMIN_JWT)")
-args = parser.parse_args()
+  Press Enter when the lockdown policy is active...
 ```
-
-**Verification**: `python run_demo.py --auto` runs all 3 phases without manual intervention.
 
 ---
 

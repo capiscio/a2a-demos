@@ -4,7 +4,7 @@ Video recording helper — runs demos with clean output and timing.
 
 Usage:
     python run_video.py demo-one      # 5 min video
-    python run_video.py demo-two      # 10 min video (requires --auto env)
+    python run_video.py demo-two      # 10 min video (manual policy switching)
     python run_video.py agents        # 15 min video (requires running agents)
 """
 import subprocess
@@ -44,7 +44,8 @@ def main():
     print(f"{'═' * 60}\n")
 
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    subprocess.run(demo["cmd"])
+    result = subprocess.run(demo["cmd"])
+    sys.exit(result.returncode)
 
 
 if __name__ == "__main__":

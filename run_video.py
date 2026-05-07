@@ -18,7 +18,7 @@ DEMOS = {
         "duration": "~5 minutes",
     },
     "demo-two": {
-        "cmd": [sys.executable, "demo-two/run_demo.py", "--auto"],
+        "cmd": [sys.executable, "demo-two/run_demo.py"],
         "title": "Policy as Code",
         "duration": "~10 minutes",
     },

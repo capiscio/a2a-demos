@@ -33,7 +33,6 @@ Prerequisites:
     - Baseline policy must be the initial active policy
 """
 
-import argparse
 import asyncio
 import logging
 import os
@@ -51,7 +50,6 @@ logging.getLogger("capiscio_mcp").setLevel(logging.WARNING)
 logging.getLogger("capiscio_sdk").setLevel(logging.WARNING)
 
 from dotenv import load_dotenv  # noqa: E402
-import httpx  # noqa: E402
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -110,48 +108,6 @@ def policy_table(rows: list[tuple[str, str, str, str]]) -> None:
 
 
 # ── Auto policy switching ────────────────────────────────────────────────
-
-
-async def activate_policy(policy_name: str) -> bool:
-    """Activate a policy by creating a proposal and approving it via the admin API."""
-    admin_jwt = os.environ.get("CAPISCIO_ADMIN_JWT")
-    org_id = os.environ.get("CAPISCIO_ORG_ID")
-    server_url = os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io")
-
-    if not admin_jwt or not org_id:
-        return False
-
-    policy_path = os.path.join(os.path.dirname(__file__), "policies", f"{policy_name}.yaml")
-    with open(policy_path) as f:
-        yaml_content = f.read()
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        # Create policy proposal
-        resp = await client.post(
-            f"{server_url}/v1/orgs/{org_id}/policy/org",
-            json={"yaml_content": yaml_content},
-            headers={
-                "Authorization": f"Bearer {admin_jwt}",
-                "Content-Type": "application/json",
-            },
-        )
-        if resp.status_code not in (200, 201):
-            print(f"  {RED}⚠️  Policy creation failed: {resp.status_code}{RESET}")
-            return False
-
-        data = resp.json()
-        proposal_id = data.get("id") or data.get("proposal_id") or data.get("document_id")
-
-        # Approve it
-        resp = await client.post(
-            f"{server_url}/v1/orgs/{org_id}/policy/proposals/{proposal_id}/approve",
-            headers={"Authorization": f"Bearer {admin_jwt}"},
-        )
-        if resp.status_code in (200, 204):
-            print(f"  {GREEN}✓{RESET} Policy '{policy_name}' activated (proposal {proposal_id})")
-            return True
-        print(f"  {RED}⚠️  Policy approval failed: {resp.status_code}{RESET}")
-        return False
 
 
 # ── Tool caller ──────────────────────────────────────────────────────────
@@ -255,7 +211,7 @@ async def run_four_scenarios(
 # ── Main demo ────────────────────────────────────────────────────────────
 
 
-async def run_demo(auto: bool = False) -> None:
+async def run_demo() -> None:
     banner("CapiscIO Demo Two — Policy as Code")
 
     # ── Connect agents ───────────────────────────────────────────────
@@ -298,26 +254,14 @@ async def run_demo(auto: bool = False) -> None:
     await run_four_scenarios(trusted_badge, untrusted_badge)
 
     # ── Pause for policy switch ──────────────────────────────────────
-    if auto:
-        print(f"\n{YELLOW}{'─' * 60}{RESET}")
-        print(f"  {BOLD}Switching to lockdown policy via API...{RESET}")
-        ok = await activate_policy("lockdown")
-        if ok:
-            print("  Waiting for PDP bundle refresh...")
-            await asyncio.sleep(3)
-        else:
-            print(f"  {RED}Auto-switch failed — falling back to manual.{RESET}")
-            print(f"    {CYAN}https://app.capisc.io{RESET} → Policies → Approve 'lockdown'")
-            input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
-        print(f"{YELLOW}{'─' * 60}{RESET}")
-    else:
-        print(f"\n{YELLOW}{'─' * 60}{RESET}")
-        print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
-        print(f"  Switch to the {BOLD}lockdown{RESET} policy in the dashboard:")
-        print(f"    {CYAN}https://app.capisc.io{RESET} → Policies → Approve 'lockdown'")
-        print("  Wait a few seconds for the PDP bundle to refresh.")
-        print(f"{YELLOW}{'─' * 60}{RESET}")
-        input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
+    print(f"\n{YELLOW}{'─' * 60}{RESET}")
+    print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
+    print(f"  Switch to the {BOLD}lockdown{RESET} policy in the dashboard:")
+    print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
+    print(f"    2. Approve the {BOLD}lockdown{RESET} policy proposal")
+    print(f"    3. Wait a few seconds for the PDP bundle to refresh")
+    print(f"{YELLOW}{'─' * 60}{RESET}")
+    input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
 
     # ── Phase 2: Lockdown ────────────────────────────────────────────
     phase_header(
@@ -336,26 +280,14 @@ async def run_demo(auto: bool = False) -> None:
     await run_four_scenarios(trusted_badge, untrusted_badge)
 
     # ── Pause for policy switch ──────────────────────────────────────
-    if auto:
-        print(f"\n{YELLOW}{'─' * 60}{RESET}")
-        print(f"  {BOLD}Switching to selective policy via API...{RESET}")
-        ok = await activate_policy("selective")
-        if ok:
-            print("  Waiting for PDP bundle refresh...")
-            await asyncio.sleep(3)
-        else:
-            print(f"  {RED}Auto-switch failed — falling back to manual.{RESET}")
-            print(f"    {CYAN}https://app.capisc.io{RESET} → Policies → Approve 'selective'")
-            input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
-        print(f"{YELLOW}{'─' * 60}{RESET}")
-    else:
-        print(f"\n{YELLOW}{'─' * 60}{RESET}")
-        print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
-        print(f"  Switch to the {BOLD}selective{RESET} policy in the dashboard:")
-        print(f"    {CYAN}https://app.capisc.io{RESET} → Policies → Approve 'selective'")
-        print("  Wait a few seconds for the PDP bundle to refresh.")
-        print(f"{YELLOW}{'─' * 60}{RESET}")
-        input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
+    print(f"\n{YELLOW}{'─' * 60}{RESET}")
+    print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
+    print(f"  Switch to the {BOLD}selective{RESET} policy in the dashboard:")
+    print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
+    print(f"    2. Approve the {BOLD}selective{RESET} policy proposal")
+    print(f"    3. Wait a few seconds for the PDP bundle to refresh")
+    print(f"{YELLOW}{'─' * 60}{RESET}")
+    input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
 
     # ── Phase 3: Selective ───────────────────────────────────────────
     phase_header(
@@ -396,16 +328,8 @@ async def run_demo(auto: bool = False) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Demo Two — Policy as Code")
-    parser.add_argument(
-        "--auto",
-        action="store_true",
-        help="Auto-switch policies via API (requires CAPISCIO_ADMIN_JWT and CAPISCIO_ORG_ID)",
-    )
-    args = parser.parse_args()
-
     try:
-        asyncio.run(run_demo(auto=args.auto))
+        asyncio.run(run_demo())
     except KeyboardInterrupt:
         print("\n\nDemo interrupted.")
         sys.exit(0)

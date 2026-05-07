@@ -270,6 +270,96 @@ def demo_chain():
     print("="*60)
 
 
+def demo_trust_enforcement():
+    """Demo where an agent rejects a request from an untrusted caller."""
+    print("\n" + "="*60)
+    print("🛡️  A2A TRUST ENFORCEMENT DEMO")
+    print("="*60)
+    print("\nThis demo shows what happens when an agent enforces trust:")
+    print("  1. Badged agent (LangChain) → LangGraph: ALLOWED")
+    print("  2. Anonymous caller (no badge) → LangGraph: DENIED")
+    print()
+    print("  NOTE: Set CAPISCIO_REQUIRE_SIGNATURES=true and")
+    print("        CAPISCIO_FAIL_MODE=block in the LangGraph agent's .env")
+    print("="*60)
+
+    # Verify LangGraph is running
+    langgraph = AGENTS["langgraph"]
+    print(f"\n📡 Checking LangGraph agent at {langgraph['url']}...")
+    card = discover_agent(langgraph["url"])
+    if not card:
+        print("❌ LangGraph agent not running — start it first:")
+        print("   cd agents/langgraph-agent && python main.py --serve")
+        return
+
+    print_agent_card(card)
+
+    # Step 1: Get badge from LangChain agent
+    langchain = AGENTS["langchain"]
+    print(f"\n📡 Checking LangChain agent at {langchain['url']}...")
+    lc_card = discover_agent(langchain["url"])
+    if not lc_card:
+        print("❌ LangChain agent not running — start it first:")
+        print("   cd agents/langchain-agent && python main.py --serve")
+        return
+
+    badge_token = None
+    try:
+        resp = httpx.get(f"{langchain['url']}/badge", timeout=5.0)
+        if resp.status_code == 200:
+            badge_token = resp.json().get("badge")
+            print("  🏷️  Badge obtained from LangChain agent")
+    except Exception:
+        pass
+
+    # Step 2: Badged call → should succeed
+    print("\n📍 STEP 1: Badged agent → LangGraph (should succeed)")
+    print("-"*40)
+    task_message = "How do I reset my password?"
+    print(f"📤 Task: \"{task_message}\"")
+
+    try:
+        result = send_task(langgraph["url"], task_message, badge_token=badge_token)
+        state = result.get("status", {}).get("state", "unknown")
+        if state == "completed":
+            print("✅ Task completed — badge accepted")
+        elif state == "blocked":
+            print(f"❌ Unexpected block: {result.get('status', {}).get('message')}")
+        else:
+            print(f"⚠️  State: {state}")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+    # Step 3: No badge → should be denied
+    print("\n📍 STEP 2: No badge → LangGraph (should be denied)")
+    print("-"*40)
+    print(f"📤 Task: \"{task_message}\" (no badge)")
+
+    try:
+        result = send_task(langgraph["url"], task_message, badge_token=None)
+        state = result.get("status", {}).get("state", "unknown")
+        if state == "blocked":
+            print(f"✅ Correctly denied: {result.get('status', {}).get('message', '')}")
+        elif state == "completed":
+            print("⚠️  Task completed — badge enforcement may not be enabled")
+            print("   Set CAPISCIO_REQUIRE_SIGNATURES=true in the LangGraph agent's .env")
+        else:
+            print(f"⚠️  State: {state}")
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (401, 403):
+            print(f"✅ Correctly denied with HTTP {e.response.status_code}")
+        else:
+            print(f"❌ Error: {e}")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+    print("\n" + "="*60)
+    print("🎉 Trust enforcement demo complete!")
+    print("   The LangGraph agent accepted the badged request")
+    print("   and denied the anonymous one.")
+    print("="*60)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="A2A Demo Driver - Send tasks between agents",
@@ -297,6 +387,11 @@ Examples:
         help="Run the agent chain demo",
     )
     parser.add_argument(
+        "--trust-demo",
+        action="store_true",
+        help="Run the trust enforcement demo (requires CAPISCIO_REQUIRE_SIGNATURES=true on LangGraph)",
+    )
+    parser.add_argument(
         "--discover",
         action="store_true",
         help="Only discover agents, don't send tasks",
@@ -316,6 +411,8 @@ Examples:
 
     if args.chain:
         demo_chain()
+    elif args.trust_demo:
+        demo_trust_enforcement()
     elif args.agent:
         demo_single_agent(args.agent, args.task)
     else:

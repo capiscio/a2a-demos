@@ -23,7 +23,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # ── Config ───────────────────────────────────────────────────────────────
 
-SERVER_URL = os.environ.get("CAPISCIO_SERVER_URL", "https://dev.registry.capisc.io")
+SERVER_URL = os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io")
 ORG_ID = os.environ.get("CAPISCIO_ORG_ID")
 ADMIN_JWT = os.environ.get("CAPISCIO_ADMIN_JWT")
 
@@ -146,7 +146,7 @@ def main() -> None:
         print(f"    {name:12s} → {pid}  [{color}{status}{RESET}]")
     print()
     print("  To switch policies during the demo:")
-    print(f"    1. Open {CYAN}https://dev.app.capisc.io{RESET}")
+    print(f"    1. Open {CYAN}https://app.capisc.io{RESET}")
     print("    2. Navigate to your org → Policies")
     print("    3. Click 'Approve' on the desired policy proposal")
     print()

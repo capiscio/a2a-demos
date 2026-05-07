@@ -107,6 +107,9 @@ def policy_table(rows: list[tuple[str, str, str, str]]) -> None:
         print(f"  {agent:<22} {tool:<18} {color}{expected:<8}{RESET} {DIM}{reason}{RESET}")
 
 
+# ── Auto policy switching ────────────────────────────────────────────────
+
+
 # ── Tool caller ──────────────────────────────────────────────────────────
 
 
@@ -213,7 +216,7 @@ async def run_demo() -> None:
 
     # ── Connect agents ───────────────────────────────────────────────
     print(f"{BOLD}Connecting agents to CapiscIO registry...{RESET}")
-    print(f"  Server URL: {os.environ.get('CAPISCIO_SERVER_URL', 'https://dev.registry.capisc.io')}")
+    print(f"  Server URL: {os.environ.get('CAPISCIO_SERVER_URL', 'https://registry.capisc.io')}")
 
     print("\n  Connecting trusted agent (with DV badge)...")
     trusted = trusted_agent.connect()
@@ -254,8 +257,9 @@ async def run_demo() -> None:
     print(f"\n{YELLOW}{'─' * 60}{RESET}")
     print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
     print(f"  Switch to the {BOLD}lockdown{RESET} policy in the dashboard:")
-    print(f"    {CYAN}https://dev.app.capisc.io{RESET} → Policies → Approve 'lockdown'")
-    print("  Wait a few seconds for the PDP bundle to refresh.")
+    print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
+    print(f"    2. Approve the {BOLD}lockdown{RESET} policy proposal")
+    print("    3. Wait a few seconds for the PDP bundle to refresh")
     print(f"{YELLOW}{'─' * 60}{RESET}")
     input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
 
@@ -279,8 +283,9 @@ async def run_demo() -> None:
     print(f"\n{YELLOW}{'─' * 60}{RESET}")
     print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
     print(f"  Switch to the {BOLD}selective{RESET} policy in the dashboard:")
-    print(f"    {CYAN}https://dev.app.capisc.io{RESET} → Policies → Approve 'selective'")
-    print("  Wait a few seconds for the PDP bundle to refresh.")
+    print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
+    print(f"    2. Approve the {BOLD}selective{RESET} policy proposal")
+    print("    3. Wait a few seconds for the PDP bundle to refresh")
     print(f"{YELLOW}{'─' * 60}{RESET}")
     input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
 
@@ -314,7 +319,7 @@ async def run_demo() -> None:
     print("    Developers set code-level floors with @guard.")
     print("    Admins layer org policy on top — at runtime.")
     print()
-    print(f"  View audit trail: {CYAN}https://dev.app.capisc.io{RESET}")
+    print(f"  View audit trail: {CYAN}https://app.capisc.io{RESET}")
     print()
 
     # Clean up

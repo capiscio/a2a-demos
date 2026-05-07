@@ -97,6 +97,16 @@ class SearchInput(BaseModel):
     query: str = Field(description="Search query")
 
 
+# Real search via DuckDuckGo (falls back to mock if unavailable)
+try:
+    from langchain_community.tools import DuckDuckGoSearchResults
+    _ddg_search = DuckDuckGoSearchResults(max_results=3)
+    HAS_DDG = True
+except ImportError:
+    _ddg_search = None
+    HAS_DDG = False
+
+
 class SearchTool(BaseTool):
     """Web search tool that emits events."""
     name: str = "search_web"
@@ -107,8 +117,10 @@ class SearchTool(BaseTool):
         if events:
             events.tool_invoked("search_web", {"query": query})
 
-        # Mock search result
-        result = f"Research findings for '{query}': This is demo content. In production, integrate real search."
+        if HAS_DDG:
+            result = _ddg_search.invoke(query)
+        else:
+            result = f"[Search unavailable] Mock results for: {query}"
 
         if events:
             events.tool_completed("search_web", {"result_length": len(result)})
@@ -385,6 +397,15 @@ async def send_task(request: Request, x_capiscio_badge: Optional[str] = Header(N
 @app.get("/health")
 async def health():
     return {"status": "healthy", "agent": AGENT_NAME}
+
+
+@app.get("/badge")
+async def get_badge():
+    """Return this agent's current trust badge (for A2A trust delegation)."""
+    badge = agent.get_badge() if agent else None
+    if badge:
+        return {"badge": badge, "did": agent.did}
+    return JSONResponse(status_code=404, content={"error": "No badge available"})
 
 
 # ==============================================================================

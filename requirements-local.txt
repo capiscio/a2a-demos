@@ -1,0 +1,22 @@
+# ═══════════════════════════════════════════════════════════════
+# LOCAL DEVELOPMENT DEPENDENCIES
+# ═══════════════════════════════════════════════════════════════
+# Install CapiscIO packages from local repos (latest commit on main)
+# instead of PyPI. Use this for pre-release testing.
+#
+# Usage:
+#   pip install -r requirements-local.txt
+#
+# These override whatever PyPI versions are installed.
+# Switch back to released versions with:
+#   pip install -r requirements.txt  (per demo)
+# ═══════════════════════════════════════════════════════════════
+
+# Core SDK — identity, badges, connect(), SecurityConfig
+-e ../capiscio-sdk-python
+
+# MCP Guard — MCPServerIdentity, CapiscioMCPServer, CapiscioMCPClient
+-e ../capiscio-mcp-python[mcp]
+
+# LangChain integration — CapiscioGuard, CapiscioCallbackHandler
+-e ../langchain-capiscio

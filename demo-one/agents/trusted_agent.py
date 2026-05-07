@@ -20,6 +20,6 @@ def connect() -> AgentIdentity:
     return CapiscIO.connect(
         api_key=os.environ["CAPISCIO_API_KEY"],
         name=os.environ.get("CAPISCIO_TRUSTED_AGENT_NAME", "demo-trusted-agent"),
-        server_url=os.environ.get("CAPISCIO_SERVER_URL", "https://dev.registry.capisc.io"),
+        server_url=os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io"),
         auto_badge=True,
     )

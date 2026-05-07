@@ -25,6 +25,8 @@ Prerequisites:
 """
 
 import asyncio
+import base64
+import json
 import logging
 import os
 import sys
@@ -42,6 +44,7 @@ logging.getLogger("capiscio_mcp").setLevel(logging.WARNING)
 logging.getLogger("capiscio_sdk").setLevel(logging.WARNING)
 
 from dotenv import load_dotenv  # noqa: E402
+import httpx  # noqa: E402
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
@@ -82,6 +85,51 @@ def scenario_header(num: int, agent_type: str, tool: str, level: int, expected: 
 def result_line(outcome: str, detail: str) -> None:
     color = GREEN if outcome == "ALLOW" else RED
     print(f"  Result: {color}{BOLD}{outcome}{RESET} — {detail}")
+
+
+def _extract_jti(badge_token: str) -> str | None:
+    """Extract the JTI claim from a JWS compact badge token."""
+    try:
+        payload_b64 = badge_token.split(".")[1]
+        # Pad base64url to standard base64
+        padding = 4 - len(payload_b64) % 4
+        if padding != 4:
+            payload_b64 += "=" * padding
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        return payload.get("jti")
+    except Exception:
+        return None
+
+
+async def revoke_badge_via_api(badge_token: str) -> bool:
+    """Revoke a badge by calling the SDK revocation endpoint.
+
+    Uses the API key for auth via the SDK route /v1/sdk/badges/{jti}/revoke.
+    This route accepts either API key (X-Capiscio-Registry-Key) or badge auth.
+    """
+    jti = _extract_jti(badge_token)
+    if not jti:
+        print(f"    {RED}Could not extract JTI from badge{RESET}")
+        return False
+
+    server_url = os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io")
+    api_key = os.environ.get("CAPISCIO_API_KEY", "")
+    if not api_key:
+        print(f"    {RED}✗{RESET} CAPISCIO_API_KEY not set — cannot revoke badge")
+        return False
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{server_url}/v1/sdk/badges/{jti}/revoke",
+            json={"reason": "demo_revocation"},
+            headers={"X-Capiscio-Registry-Key": api_key},
+            timeout=10.0,
+        )
+        if resp.status_code in (200, 204):
+            print(f"    {GREEN}✓{RESET} Badge revoked (JTI: {jti[:12]}…)")
+            return True
+        print(f"    {RED}✗{RESET} Revocation failed: {resp.status_code} — {resp.text}")
+        return False
 
 
 # ── Scenario runner ──────────────────────────────────────────────────────
@@ -140,7 +188,7 @@ async def run_demo() -> None:
 
     # ── Connect agents ───────────────────────────────────────────────
     print(f"{BOLD}Connecting agents to CapiscIO registry...{RESET}")
-    print(f"  Server URL: {os.environ.get('CAPISCIO_SERVER_URL', 'https://dev.registry.capisc.io')}")
+    print(f"  Server URL: {os.environ.get('CAPISCIO_SERVER_URL', 'https://registry.capisc.io')}")
     print()
 
     print("  Connecting trusted agent (with badge)...")
@@ -193,6 +241,21 @@ async def run_demo() -> None:
     )
     result_line(outcome, detail)
 
+    # Scenario 5: Revoke the trusted agent's badge, then retry → DENY
+    scenario_header(5, "trusted (badge REVOKED)", "place_order", 1, "DENY")
+
+    if trusted_badge:
+        print("  Revoking trusted agent's badge...")
+        await revoke_badge_via_api(trusted_badge)
+        await asyncio.sleep(2)  # Propagation delay
+    else:
+        print(f"  {YELLOW}Skipping — no badge to revoke{RESET}")
+
+    outcome, detail = await call_tool(
+        trusted_badge, "place_order", {"sku": "WIDGET-A", "quantity": 1}
+    )
+    result_line(outcome, detail)
+
     # ── Summary ──────────────────────────────────────────────────────
     banner("Summary")
     print("  The @guard decorator on the MCP server enforced per-tool")
@@ -201,6 +264,9 @@ async def run_demo() -> None:
     print("  while the untrusted agent was denied — even though both could")
     print("  still call get_price (level 0, open to all).")
     print()
+    print("  After revoking the trusted agent's badge, even it was denied —")
+    print("  proving that trust is dynamic and can be revoked in real time.")
+    print()
     print("  Trust levels are earned, not declared:")
     print("    Level 0 — self-signed (no external validation)")
     print("    Level 1 — PoP (cryptographic key ownership proof)")
@@ -208,7 +274,7 @@ async def run_demo() -> None:
     print("    Level 3 — OV (organization validation)")
     print("    Level 4 — EV (extended validation)")
     print()
-    print(f"  View events in the dashboard: {CYAN}https://dev.app.capisc.io{RESET}")
+    print(f"  View events in the dashboard: {CYAN}https://app.capisc.io{RESET}")
     print()
 
     # Clean up

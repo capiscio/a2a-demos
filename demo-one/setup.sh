@@ -60,13 +60,18 @@ path = ensure_binary()
 print(f'  Binary cached at: {path}')
 "
 
-# ── 3. Verify .env ──────────────────────────────────────────────────────
+# ── 3. Scaffold .env ─────────────────────────────────────────────────────
 echo ""
 if [ -f "$SCRIPT_DIR/.env" ]; then
     echo "✓ .env file found"
 else
-    echo "⚠ No .env file found. Copy .env.example to .env and fill in your credentials:"
-    echo "    cp .env.example .env"
+    cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+    echo "⚠️  Created .env from .env.example — edit it with your credentials:"
+    echo "    $SCRIPT_DIR/.env"
+    echo ""
+    echo "   Required:"
+    echo "     CAPISCIO_API_KEY   — from https://app.capisc.io → Settings → API Keys"
+    echo "     CAPISCIO_SERVER_ID — from https://app.capisc.io → MCP Servers (or set to 'auto')"
 fi
 
 echo ""

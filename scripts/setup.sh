@@ -115,11 +115,31 @@ echo "   MODE: LOCAL REPOS (editable installs)"
 echo "   Changes to capiscio-sdk-python, capiscio-mcp-python,"
 echo "   and langchain-capiscio take effect immediately."
 fi
+# Scaffold .env files for each demo if missing
+ENV_SCAFFOLDED=false
+for demo_dir in demo-one demo-two mcp-demo; do
+    if [ -f "$SCRIPT_DIR/$demo_dir/.env.example" ] && [ ! -f "$SCRIPT_DIR/$demo_dir/.env" ]; then
+        cp "$SCRIPT_DIR/$demo_dir/.env.example" "$SCRIPT_DIR/$demo_dir/.env"
+        echo "   ⚠️  Created $demo_dir/.env from .env.example"
+        ENV_SCAFFOLDED=true
+    fi
+done
+if [ -f "$SCRIPT_DIR/.env.example" ] && [ ! -f "$SCRIPT_DIR/.env" ]; then
+    cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+    echo "   ⚠️  Created .env from .env.example"
+    ENV_SCAFFOLDED=true
+fi
+
 echo ""
+if [ "$ENV_SCAFFOLDED" = true ]; then
 echo "Next steps:"
-echo "   1. Copy .env.example to .env and add your credentials:"
-echo "      - OPENAI_API_KEY (required)"
+echo "   1. Edit the .env files with your credentials:"
 echo "      - CAPISCIO_API_KEY (from app.capisc.io → Settings → API Keys)"
+echo "      - OPENAI_API_KEY (required for agents)"
+else
+echo "Next steps:"
+echo "   1. Verify your .env credentials are current"
+fi
 echo ""
 echo "   2. Run agents:  ./scripts/run-agents.sh"
 echo ""

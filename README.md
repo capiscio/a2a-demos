@@ -1,3 +1,10 @@
+<p align="center">
+  <strong>🔒 Trust Infrastructure for AI Agents</strong><br/>
+  <a href="https://capisc.io">Website</a> · <a href="https://docs.capisc.io/getting-started/">Get Started</a> · <a href="https://capisc.io/pycon">Meet us at PyCon US 2026</a>
+</p>
+
+---
+
 # CapiscIO Demos
 
 > Working examples of CapiscIO's "Let's Encrypt for AI" approach — cryptographic identity, trust badges, and policy enforcement for **MCP servers** and **A2A agents**.
@@ -490,3 +497,10 @@ python scripts/demo_driver.py --agent langgraph --task "My login is broken"
 ## 📄 License
 
 MIT - See [LICENSE](LICENSE)
+
+---
+
+<p align="center">
+  <strong>CapiscIO — The Universal Authority Layer for AI Agents</strong><br/>
+  <a href="https://capisc.io">capisc.io</a> · <a href="https://docs.capisc.io">Docs</a> · <a href="https://github.com/capiscio">GitHub</a>
+</p>

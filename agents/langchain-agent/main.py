@@ -123,11 +123,20 @@ _resolved_simple_guard = None
 # LangChain Tools
 # ==============================================================================
 
+try:
+    from langchain_community.tools import DuckDuckGoSearchResults
+    _ddg = DuckDuckGoSearchResults(max_results=3)
+    HAS_DDG = True
+except ImportError:
+    HAS_DDG = False
+
+
 @tool
 def search_web(query: str) -> str:
     """Search the web for information about a topic."""
-    # Simple mock search - in production, use DuckDuckGo or other search
-    return f"Search results for '{query}': This is a demo search result. In production, integrate with a real search API."
+    if HAS_DDG:
+        return _ddg.invoke(query)
+    return f"[Search unavailable] Mock results for: {query}"
 
 
 @tool
@@ -383,6 +392,16 @@ async def get_task(task_id: str):
 async def health():
     """Health check endpoint."""
     return {"status": "healthy", "agent": AGENT_NAME}
+
+
+@app.get("/badge")
+async def get_badge():
+    """Return this agent's current trust badge (for A2A trust delegation)."""
+    identity = guard.identity if guard else None
+    badge = identity.get_badge() if identity else None
+    if badge:
+        return {"badge": badge, "did": identity.did}
+    return JSONResponse(status_code=404, content={"error": "No badge available"})
 
 
 # ==============================================================================

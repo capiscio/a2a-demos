@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Demo Two — Setup Script
 #
-# Creates a virtual environment, installs dependencies, and
-# pre-downloads the capiscio-core binary (~15 MB).
+# Usage:
+#   ./setup.sh           # Install from PyPI
+#   ./setup.sh --local   # Install from local repos (pre-release testing)
 #
 # Run this BEFORE the demo (e.g., at home before PyCon) so
 # everything works offline / on slow conference Wi-Fi.
@@ -12,8 +13,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Parse flags
+USE_LOCAL=false
+for arg in "$@"; do
+    case $arg in
+        --local) USE_LOCAL=true ;;
+    esac
+done
+
 echo "═══════════════════════════════════════════════════════"
-echo "  CapiscIO Demo Two — Setup"
+if [ "$USE_LOCAL" = true ]; then
+echo "  CapiscIO Demo Two — Setup (LOCAL REPOS)"
+else
+echo "  CapiscIO Demo Two — Setup (PyPI)"
+fi
 echo "═══════════════════════════════════════════════════════"
 
 # ── Virtual environment ──────────────────────────────────
@@ -31,7 +44,15 @@ source .venv/bin/activate
 echo ""
 echo "Installing dependencies…"
 pip install -q --upgrade pip
-pip install -q -r requirements.txt
+
+if [ "$USE_LOCAL" = true ]; then
+    pip install -q -e "$SCRIPT_DIR/../../capiscio-sdk-python"
+    pip install -q -e "$SCRIPT_DIR/../../capiscio-mcp-python[mcp]"
+    pip install -q python-dotenv httpx pyyaml
+    echo "  ✓ Using local repos (editable installs)"
+else
+    pip install -q -r requirements.txt
+fi
 
 # ── Pre-download capiscio-core binary ────────────────────
 echo ""

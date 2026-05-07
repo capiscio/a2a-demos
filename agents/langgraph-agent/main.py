@@ -63,6 +63,13 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 PORT = int(os.environ.get("LANGGRAPH_AGENT_PORT", "8003"))
 SECURITY_MODE = os.environ.get("SECURITY_MODE", "ca")  # 'dev' or 'ca'
 
+# LLM import for classification (optional — falls back to keyword matching)
+try:
+    from langchain_openai import ChatOpenAI
+    HAS_LLM = bool(OPENAI_API_KEY)
+except ImportError:
+    HAS_LLM = False
+
 # Global instances
 events: Optional[EventEmitter] = None
 agent: Optional["AgentIdentity"] = None
@@ -139,18 +146,30 @@ def emit_edge(from_node: str, to_node: str, condition: str = ""):
 
 
 def classify_request(state: SupportState) -> dict:
-    """Classify the user's request into a category."""
+    """Classify the user's request into a category using LLM or keyword fallback."""
     emit_node_start("classify_request", state)
 
-    message = state["user_message"].lower()
+    message = state["user_message"]
 
-    # Simple keyword-based classification
-    if any(word in message for word in ["bug", "error", "crash", "not working", "broken", "technical"]):
-        category = "technical"
-    elif any(word in message for word in ["bill", "charge", "payment", "invoice", "refund", "subscription"]):
-        category = "billing"
+    if HAS_LLM:
+        llm = ChatOpenAI(model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"), temperature=0, api_key=OPENAI_API_KEY)
+        result = llm.invoke(
+            f"Classify this customer support request into exactly one category: "
+            f"technical, billing, or general. Reply with just the category word.\n\n"
+            f"Request: {message}"
+        )
+        category = result.content.strip().lower()
+        if category not in ("technical", "billing", "general"):
+            category = "general"
     else:
-        category = "general"
+        # Fallback to keyword matching if no LLM available
+        message_lower = message.lower()
+        if any(word in message_lower for word in ["bug", "error", "crash", "not working", "broken", "technical"]):
+            category = "technical"
+        elif any(word in message_lower for word in ["bill", "charge", "payment", "invoice", "refund", "subscription"]):
+            category = "billing"
+        else:
+            category = "general"
 
     updates = {
         "category": category,
@@ -232,23 +251,36 @@ def general_support(state: SupportState) -> dict:
 
 
 def generate_response(state: SupportState) -> dict:
-    """Generate the final response using accumulated context."""
+    """Generate the final response using LLM or template fallback."""
     emit_node_start("generate_response", state)
 
     category = state.get("category", "general")
     context = state.get("context", [])
     user_message = state.get("user_message", "")
 
-    # Build response based on category and context
-    category_intros = {
-        "technical": "I understand you're experiencing a technical issue.",
-        "billing": "I can help you with your billing inquiry.",
-        "general": "Thank you for reaching out.",
-    }
+    if HAS_LLM:
+        llm = ChatOpenAI(model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"), temperature=0.3, api_key=OPENAI_API_KEY)
+        context_text = "\n".join(f"- {c}" for c in context)
+        result = llm.invoke(
+            f"You are a helpful {category} support agent. "
+            f"Generate a concise, professional response to this customer request.\n\n"
+            f"Category: {category}\n"
+            f"Context gathered:\n{context_text}\n\n"
+            f"Customer message: {user_message}\n\n"
+            f"Respond helpfully in 2-4 sentences."
+        )
+        response = result.content.strip()
+    else:
+        # Template fallback
+        category_intros = {
+            "technical": "I understand you're experiencing a technical issue.",
+            "billing": "I can help you with your billing inquiry.",
+            "general": "Thank you for reaching out.",
+        }
 
-    intro = category_intros.get(category, "Thank you for your message.")
+        intro = category_intros.get(category, "Thank you for your message.")
 
-    response = f"""{intro}
+        response = f"""{intro}
 
 Based on your message: "{user_message[:100]}..."
 
@@ -556,6 +588,15 @@ async def send_task(request: Request, x_capiscio_badge: Optional[str] = Header(N
 @app.get("/health")
 async def health():
     return {"status": "healthy", "agent": AGENT_NAME}
+
+
+@app.get("/badge")
+async def get_badge():
+    """Return this agent's current trust badge (for A2A trust delegation)."""
+    badge = agent.get_badge() if agent else None
+    if badge:
+        return {"badge": badge, "did": agent.did}
+    return JSONResponse(status_code=404, content={"error": "No badge available"})
 
 
 # ==============================================================================

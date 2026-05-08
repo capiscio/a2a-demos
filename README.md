@@ -43,18 +43,23 @@ An MCP server with three tools at different trust levels. A trusted agent (with 
 
 | Scenario | Agent | Tool | Trust Level | Result |
 |----------|-------|------|-------------|--------|
-| 1 | Trusted (DV badge) | `get_price` | 0 (open) | ALLOW |
-| 2 | Trusted (DV badge) | `place_order` | 2 (DV+) | ALLOW |
+| 1 | Trusted (badged) | `get_price` | 0 (open) | ALLOW |
+| 2 | Trusted (badged) | `place_order` | 1 (PoP) | ALLOW |
 | 3 | Untrusted (no badge) | `get_price` | 0 (open) | ALLOW |
-| 4 | Untrusted (no badge) | `place_order` | 2 (DV+) | **DENY** |
+| 4 | Untrusted (no badge) | `place_order` | 1 (PoP) | **DENY** |
+| 5 | Trusted (badge **revoked**) | `place_order` | 1 (PoP) | **DENY** |
 
 ### Setup
 
 ```bash
 cd demo-one
 ./setup.sh              # Creates venv, installs deps, downloads binary
-cp .env.example .env    # Fill in your API key + server ID
+                        # Auto-creates .env from .env.example if missing
 ```
+
+Edit `.env` with your credentials:
+- `CAPISCIO_API_KEY` — from [app.capisc.io](https://app.capisc.io) → Settings → API Keys
+- `CAPISCIO_SERVER_ID` — from Dashboard → MCP Servers (or set to `auto`)
 
 ### Run
 
@@ -70,10 +75,10 @@ python run_demo.py
 @server.tool(min_trust_level=0)
 async def get_price(sku: str) -> str: ...
 
-@server.tool(min_trust_level=2)
+@server.tool(min_trust_level=1)
 async def place_order(sku: str, quantity: int) -> str: ...
 
-@server.tool(min_trust_level=4)
+@server.tool(min_trust_level=2)
 async def cancel_all_orders() -> str: ...
 ```
 
@@ -128,9 +133,10 @@ Shows how org-level policy changes alter trust enforcement at runtime. The prese
 
 ```bash
 cd demo-two
-./setup.sh
-cp .env.example .env    # Fill in API key, server ID, org ID, admin JWT
+./setup.sh              # Auto-creates .env from .env.example if missing
 ```
+
+Edit `.env` with your credentials (API key, server ID, org ID, admin JWT).
 
 Create the three policy proposals:
 ```bash
@@ -230,7 +236,7 @@ All agents use `CapiscIO.connect()` to get a cryptographic identity (DID), regis
 ```bash
 cd a2a-demos
 ./scripts/setup.sh   # Creates per-agent .venvs, installs deps + shared module
-cp .env.example .env
+                     # Auto-creates .env files from .env.example if missing
 ```
 
 ### 2. Configure environment

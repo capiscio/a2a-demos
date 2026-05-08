@@ -59,14 +59,18 @@ echo ""
 echo "Pre-downloading capiscio-core binary…"
 python3 -c "from capiscio_mcp._core.lifecycle import ensure_binary; ensure_binary()"
 
-# ── .env check ───────────────────────────────────────────
+# ── Scaffold .env ────────────────────────────────────────
 echo ""
-if [ ! -f ".env" ]; then
-    echo "⚠  No .env file found."
-    echo "   Copy .env.example to .env and fill in your values:"
-    echo "   cp .env.example .env"
-else
+if [ -f ".env" ]; then
     echo "✓  .env file found"
+else
+    cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+    echo "⚠️  Created .env from .env.example — edit it with your credentials:"
+    echo "    $(pwd)/.env"
+    echo ""
+    echo "   Required:"
+    echo "     CAPISCIO_API_KEY   — from https://app.capisc.io → Settings → API Keys"
+    echo "     CAPISCIO_SERVER_ID — from https://app.capisc.io → MCP Servers (or set to 'auto')"
 fi
 
 echo ""
@@ -74,9 +78,8 @@ echo "════════════════════════�
 echo "  Setup complete!"
 echo ""
 echo "  Next steps:"
-echo "    1. cp .env.example .env  (if not done)"
-echo "    2. Fill in credentials in .env"
-echo "    3. python scripts/setup_policies.py  (create policies)"
-echo "    4. source .venv/bin/activate"
-echo "    5. python run_demo.py"
+echo "    1. Edit .env with your credentials (if just created)"
+echo "    2. python scripts/setup_policies.py  (create policies)"
+echo "    3. source .venv/bin/activate"
+echo "    4. python run_demo.py"
 echo "═══════════════════════════════════════════════════════"

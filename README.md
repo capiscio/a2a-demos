@@ -18,8 +18,8 @@ Self-contained, no LLM required. Each focuses on one security concept with an in
 | Demo | What it shows | Time | Quick start |
 |------|---------------|------|-------------|
 | **[Enforcement Demo](#enforcement-demo--zero-to-enforcement)** | `@guard` decorator, trust levels, badge revocation | 5 min | `cd enforcement-demo && ./setup.sh` |
-| **[Demo Two: Policy as Code](#demo-two--policy-as-code)** | Runtime policy changes — no code deploy needed | 10 min | `cd demo-two && ./setup.sh` |
 | **[MCP Guard Demo](#mcp-guard-demo)** | Server identity, client verification, per-tool trust | 5 min | `cd mcp-demo && docker compose up` |
+| [Demo Two: Policy as Code](#demo-two--policy-as-code) | Runtime policy changes via org-level policies | 10 min | `cd demo-two && ./setup.sh` |
 
 ### Integration Demos — CapiscIO with real AI frameworks
 
@@ -29,19 +29,16 @@ Requires `OPENAI_API_KEY`. Long-running HTTP servers using the A2A protocol with
 |------|---------------|------|-------------|
 | **[Agent Guard Demos](#agent-guard-demos)** | LangChain, CrewAI, LangGraph agents with DIDs, badges, events | 15 min | `./scripts/setup.sh` |
 
-**New to CapiscIO?** Start with the Enforcement Demo — it takes 5 minutes, needs no API keys beyond CapiscIO, and shows the core concept.
+**New to CapiscIO?** Start with the Enforcement Demo — 5 minutes, one API key, and you'll see trust enforcement in action.
 
 ---
 
 ## Prerequisites
 
-**For concept demos** (enforcement-demo, demo-two, mcp-demo):
-- Python 3.11+
-- A free CapiscIO account — sign up at [app.capisc.io](https://app.capisc.io)
-- API key from Dashboard → Settings → API Keys
-
-**Additionally for integration demos** (agents):
-- OpenAI API key (or compatible LLM provider)
+1. **Python 3.11+**
+2. **A free CapiscIO account** — sign up at [app.capisc.io](https://app.capisc.io)
+3. **API key** — Dashboard → Settings → API Keys
+4. **OpenAI API key** *(only for integration demos)*
 
 > **Tip:** Run `./setup.sh` before going offline — it pre-downloads a ~15 MB binary that the demos need.
 
@@ -51,68 +48,47 @@ Requires `OPENAI_API_KEY`. Long-running HTTP servers using the A2A protocol with
 
 **"5 minutes from zero to trust-enforced MCP tools."**
 
-An MCP server with three tools at different trust levels. A trusted agent (with a badge) can call restricted tools; an untrusted agent (no badge) gets denied.
+An MCP server with three tools at different trust levels. A trusted agent (with a badge) can call restricted tools; an untrusted agent gets denied. Then we revoke the badge — and even the trusted agent is locked out.
 
-### What you'll see
-
-| Scenario | Agent | Tool | Trust Level | Result |
-|----------|-------|------|-------------|--------|
-| 1 | Trusted (badged) | `get_price` | 0 (open) | ALLOW |
-| 2 | Trusted (badged) | `place_order` | 1 (PoP) | ALLOW |
-| 3 | Untrusted (no badge) | `get_price` | 0 (open) | ALLOW |
-| 4 | Untrusted (no badge) | `place_order` | 1 (PoP) | **DENY** |
-| 5 | Trusted (badge **revoked**) | `place_order` | 1 (PoP) | **DENY** |
-
-### Setup
+### Setup & run
 
 ```bash
 cd enforcement-demo
-./setup.sh              # Creates venv, installs deps, downloads binary
-                        # Auto-creates .env from .env.example if missing
-```
-
-Edit `.env` with your credentials:
-- `CAPISCIO_API_KEY` — from [app.capisc.io](https://app.capisc.io) → Settings → API Keys
-- `CAPISCIO_SERVER_ID` — from Dashboard → MCP Servers (or set to `auto`)
-
-### Run
-
-```bash
+./setup.sh                    # Creates venv, installs deps, downloads binary
+cp .env.example .env          # Then edit: add CAPISCIO_API_KEY
 source .venv/bin/activate
 python run_demo.py
 ```
+
+> Only two env vars needed: `CAPISCIO_API_KEY` (from dashboard) and `CAPISCIO_SERVER_ID` (set to `auto` to create one automatically).
+
+### What you'll see
+
+| # | Agent | Tool | Result | Why |
+|---|-------|------|--------|-----|
+| 1 | Trusted (badged) | `get_price` | ✓ ALLOW | Open tool |
+| 2 | Trusted (badged) | `place_order` | ✓ ALLOW | Badge proves key ownership |
+| 3 | Untrusted (no badge) | `get_price` | ✓ ALLOW | Open tool — no badge needed |
+| 4 | Untrusted (no badge) | `place_order` | ✗ **DENY** | No badge → trust level too low |
+| 5 | Trusted (badge **revoked**) | `place_order` | ✗ **DENY** | Badge revoked in real time |
 
 ### Key code
 
 **Server** — one decorator per tool:
 ```python
-@server.tool(min_trust_level=0)
+@server.tool(min_trust_level=0)    # open to all
 async def get_price(sku: str) -> str: ...
 
-@server.tool(min_trust_level=1)
+@server.tool(min_trust_level=1)    # requires PoP badge
 async def place_order(sku: str, quantity: int) -> str: ...
-
-@server.tool(min_trust_level=2)
-async def cancel_all_orders() -> str: ...
 ```
 
 **Agent** — one line to connect:
 ```python
-identity = CapiscIO.connect(api_key=..., auto_badge=True)
+identity = CapiscIO.connect(api_key="sk_live_...", auto_badge=True)
 ```
 
-### Files
-
-```
-enforcement-demo/
-├── server/main.py          # MCP server with 3 guarded tools
-├── agents/
-│   ├── trusted_agent.py    # Badged agent (auto_badge=True)
-│   └── untrusted_agent.py  # No-badge agent (auto_badge=False)
-├── run_demo.py             # Orchestrator: 5 scenarios
-├── setup.sh                # Environment setup + binary download
-├── .env.example            # Credential template
-└── requirements.txt
+**→ Full details, expected output, and troubleshooting: [`enforcement-demo/README.md`](enforcement-demo/README.md)**
 ```
 
 ---

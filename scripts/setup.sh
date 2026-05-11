@@ -117,7 +117,7 @@ echo "   and langchain-capiscio take effect immediately."
 fi
 # Scaffold .env files for each demo if missing
 ENV_SCAFFOLDED=false
-for demo_dir in demo-one demo-two mcp-demo; do
+for demo_dir in enforcement-demo demo-two mcp-demo; do
     if [ -f "$SCRIPT_DIR/$demo_dir/.env.example" ] && [ ! -f "$SCRIPT_DIR/$demo_dir/.env" ]; then
         cp "$SCRIPT_DIR/$demo_dir/.env.example" "$SCRIPT_DIR/$demo_dir/.env"
         echo "   ⚠️  Created $demo_dir/.env from .env.example"
@@ -138,7 +138,7 @@ echo "      Each demo has different required fields — open the .env to see the
 echo "      Common fields:"
 echo "        - CAPISCIO_API_KEY  (from app.capisc.io → Settings → API Keys)"
 echo "        - OPENAI_API_KEY    (required for agents)"
-echo "        - CAPISCIO_SERVER_ID (demo-one, demo-two: from Dashboard → MCP Servers)"
+echo "        - CAPISCIO_SERVER_ID (enforcement-demo, demo-two: from Dashboard → MCP Servers)"
 else
 echo "Next steps:"
 echo "   1. Verify your .env credentials are current"

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Demo One — "Zero to Enforcement"
+Enforcement Demo — "Zero to Enforcement"
 
 Runs four scenarios that demonstrate CapiscIO trust enforcement
 on an MCP server with three tools at different trust levels:
@@ -85,6 +85,15 @@ def scenario_header(num: int, agent_type: str, tool: str, level: int, expected: 
 def result_line(outcome: str, detail: str) -> None:
     color = GREEN if outcome == "ALLOW" else RED
     print(f"  Result: {color}{BOLD}{outcome}{RESET} — {detail}")
+
+
+def pause(hint: str = "") -> None:
+    """Wait for the presenter to press Enter before continuing."""
+    msg = f"\n  {YELLOW}▸ Press Enter to continue{RESET}"
+    if hint:
+        msg += f"  {YELLOW}({hint}){RESET}"
+    input(msg + " ")
+    print()
 
 
 def _extract_jti(badge_token: str) -> str | None:
@@ -184,7 +193,7 @@ async def call_tool(badge: str | None, tool_name: str, args: dict) -> tuple[str,
 
 
 async def run_demo() -> None:
-    banner("CapiscIO Demo One — Zero to Enforcement")
+    banner("CapiscIO Enforcement Demo — Zero to Enforcement")
 
     # ── Connect agents ───────────────────────────────────────────────
     print(f"{BOLD}Connecting agents to CapiscIO registry...{RESET}")
@@ -221,6 +230,7 @@ async def run_demo() -> None:
     scenario_header(1, "trusted (badged)", "get_price", 0, "ALLOW")
     outcome, detail = await call_tool(trusted_badge, "get_price", {"sku": "WIDGET-A"})
     result_line(outcome, detail)
+    pause("next: trusted agent calls a restricted tool")
 
     # Scenario 2: Trusted agent → restricted tool → ALLOW
     scenario_header(2, "trusted (badged)", "place_order", 1, "ALLOW")
@@ -228,11 +238,13 @@ async def run_demo() -> None:
         trusted_badge, "place_order", {"sku": "WIDGET-B", "quantity": 3}
     )
     result_line(outcome, detail)
+    pause("next: untrusted agent calls an open tool")
 
     # Scenario 3: Untrusted agent → open tool → ALLOW
     scenario_header(3, "untrusted (no badge)", "get_price", 0, "ALLOW")
     outcome, detail = await call_tool(untrusted_badge, "get_price", {"sku": "WIDGET-C"})
     result_line(outcome, detail)
+    pause("next: untrusted agent calls a restricted tool")
 
     # Scenario 4: Untrusted agent → restricted tool → DENY
     scenario_header(4, "untrusted (no badge)", "place_order", 1, "DENY")
@@ -240,6 +252,7 @@ async def run_demo() -> None:
         untrusted_badge, "place_order", {"sku": "WIDGET-A", "quantity": 1}
     )
     result_line(outcome, detail)
+    pause("next: revoke trusted agent's badge and retry")
 
     # Scenario 5: Revoke the trusted agent's badge, then retry → DENY
     scenario_header(5, "trusted (badge REVOKED)", "place_order", 1, "DENY")
@@ -255,6 +268,7 @@ async def run_demo() -> None:
         trusted_badge, "place_order", {"sku": "WIDGET-A", "quantity": 1}
     )
     result_line(outcome, detail)
+    pause("show summary")
 
     # ── Summary ──────────────────────────────────────────────────────
     banner("Summary")
@@ -277,7 +291,9 @@ async def run_demo() -> None:
     print(f"  View events in the dashboard: {CYAN}https://app.capisc.io{RESET}")
     print()
 
-    # Clean up
+    # Clean up — suppress the expected "Channel closed!" log from
+    # BadgeKeeper's streaming RPC during shutdown.
+    logging.getLogger("capiscio_sdk.badge_keeper").setLevel(logging.CRITICAL)
     trusted.close()
     untrusted.close()
 

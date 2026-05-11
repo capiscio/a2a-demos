@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup.sh — Setup Demo One environment.
+# setup.sh — Setup Enforcement Demo environment.
 #
 # Usage:
 #   ./setup.sh           # Install from PyPI
@@ -22,9 +22,9 @@ done
 
 echo "╔══════════════════════════════════════════════════════════╗"
 if [ "$USE_LOCAL" = true ]; then
-echo "║  CapiscIO Demo One Setup — LOCAL REPOS                  ║"
+echo "║  CapiscIO Enforcement Demo Setup — LOCAL REPOS                  ║"
 else
-echo "║  CapiscIO Demo One Setup — PyPI                         ║"
+echo "║  CapiscIO Enforcement Demo Setup — PyPI                         ║"
 fi
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""

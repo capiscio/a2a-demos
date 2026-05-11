@@ -1,4 +1,4 @@
-# CapiscIO Demo One — "Zero to Enforcement"
+# CapiscIO Enforcement Demo — "Zero to Enforcement"
 #
 # Installs both SDK and MCP packages.
 # The capiscio-core binary is downloaded automatically on first use,

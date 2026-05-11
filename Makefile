@@ -1,4 +1,4 @@
-.PHONY: dev install clean test lint demo-one demo-two agents help video-one video-two video-agents
+.PHONY: dev install clean test lint enforcement-demo demo-two agents help video-enforcement video-two video-agents
 
 # ═══════════════════════════════════════════════════════════════
 # A2A Demos — Development Makefile
@@ -31,7 +31,7 @@ help: ## Show this help
 	@echo "║    make install      Install all deps from PyPI          ║"
 	@echo "║                                                          ║"
 	@echo "║  Demos:                                                  ║"
-	@echo "║    make demo-one     Run Demo One (Zero to Enforcement)  ║"
+	@echo "║    make enforcement-demo  Run Enforcement Demo             ║"
 	@echo "║    make demo-two     Run Demo Two (Policy as Code)       ║"
 	@echo "║    make agents       Setup agent environments            ║"
 	@echo "║                                                          ║"
@@ -64,8 +64,8 @@ dev: dev-check ## Install ALL demos using local repos (pre-release testing)
 	$(PYTHON) -m pip install -r $(LOCAL_DEPS)
 	# Per-demo dependencies (non-capiscio deps like dotenv, httpx)
 	$(PYTHON) -m pip install python-dotenv httpx uvicorn fastapi -q
-	# Demo One
-	cd demo-one && $(PYTHON) -m pip install -r requirements.txt --no-deps -q 2>/dev/null || true
+	# Enforcement Demo
+	cd enforcement-demo && $(PYTHON) -m pip install -r requirements.txt --no-deps -q 2>/dev/null || true
 	# Demo Two
 	cd demo-two && $(PYTHON) -m pip install -r requirements.txt --no-deps -q 2>/dev/null || true
 	# Agent frameworks
@@ -88,7 +88,7 @@ install: ## Install ALL demos from PyPI (released versions)
 	@echo "═══════════════════════════════════════════════════════════"
 	@echo ""
 	$(PYTHON) -m pip install -e shared/ -q
-	cd demo-one && $(PYTHON) -m pip install -r requirements.txt -q
+	cd enforcement-demo && $(PYTHON) -m pip install -r requirements.txt -q
 	cd demo-two && $(PYTHON) -m pip install -r requirements.txt -q
 	@for agent in langchain-agent crewai-agent langgraph-agent; do \
 		echo "  Installing agents/$$agent..."; \
@@ -102,8 +102,8 @@ install: ## Install ALL demos from PyPI (released versions)
 
 # ─── Demo runners ───────────────────────────────────────────────────────
 
-demo-one: ## Run Demo One — Zero to Enforcement
-	cd demo-one && source .venv/bin/activate 2>/dev/null; $(PYTHON) run_demo.py
+enforcement-demo: ## Run Enforcement Demo — Zero to Enforcement
+	cd enforcement-demo && source .venv/bin/activate 2>/dev/null; $(PYTHON) run_demo.py
 
 demo-two: ## Run Demo Two — Policy as Code
 	cd demo-two && source .venv/bin/activate 2>/dev/null; $(PYTHON) run_demo.py
@@ -122,7 +122,7 @@ test: ## Syntax-check all Python files
 	@echo "✓ All Python files are syntactically valid"
 
 clean: ## Remove venvs and caches
-	rm -rf demo-one/.venv demo-two/.venv mcp-demo/.venv
+	rm -rf enforcement-demo/.venv demo-two/.venv mcp-demo/.venv
 	rm -rf agents/langchain-agent/.venv agents/crewai-agent/.venv agents/langgraph-agent/.venv
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
@@ -130,8 +130,8 @@ clean: ## Remove venvs and caches
 
 # ─── Video recording ─────────────────────────────────────────────────────
 
-video-one: ## Record Video 1: Zero to Enforcement
-	$(PYTHON) run_video.py demo-one
+video-enforcement: ## Record Video: Zero to Enforcement
+	$(PYTHON) run_video.py enforcement-demo
 
 video-two: ## Record Video 2: Policy as Code
 	$(PYTHON) run_video.py demo-two

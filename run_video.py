@@ -3,7 +3,7 @@
 Video recording helper — runs demos with clean output and timing.
 
 Usage:
-    python run_video.py demo-one      # 5 min video
+    python run_video.py enforcement-demo  # 5 min video
     python run_video.py demo-two      # 10 min video (manual policy switching)
     python run_video.py agents        # 15 min video (requires running agents)
 """
@@ -12,8 +12,8 @@ import sys
 import os
 
 DEMOS = {
-    "demo-one": {
-        "cmd": [sys.executable, "demo-one/run_demo.py"],
+    "enforcement-demo": {
+        "cmd": [sys.executable, "enforcement-demo/run_demo.py"],
         "title": "Zero to Enforcement",
         "duration": "~5 minutes",
     },
@@ -32,7 +32,7 @@ DEMOS = {
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1] not in DEMOS:
-        print("Usage: python run_video.py [demo-one|demo-two|agents]")
+        print("Usage: python run_video.py [enforcement-demo|demo-two|agents]")
         for key, info in DEMOS.items():
             print(f"  {key:12s} — {info['title']} ({info['duration']})")
         sys.exit(1)

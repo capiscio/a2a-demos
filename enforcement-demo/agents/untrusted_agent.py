@@ -1,5 +1,5 @@
 """
-Demo One — Untrusted Agent.
+Enforcement Demo — Untrusted Agent.
 
 Connects to CapiscIO but does NOT obtain a badge.
 Without a badge, this agent will be denied access to any tool
@@ -13,7 +13,7 @@ import os
 
 from capiscio_sdk import CapiscIO, AgentIdentity
 
-logger = logging.getLogger("demo-one.untrusted-agent")
+logger = logging.getLogger("enforcement-demo.untrusted-agent")
 
 
 def connect() -> AgentIdentity:

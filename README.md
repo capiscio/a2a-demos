@@ -11,29 +11,43 @@
 
 ## Demos at a Glance
 
+### Concept Demos — understand CapiscIO security
+
+Self-contained, no LLM required. Each focuses on one security concept with an interactive walkthrough.
+
 | Demo | What it shows | Time | Quick start |
 |------|---------------|------|-------------|
-| **[Demo One: Zero to Enforcement](#demo-one--zero-to-enforcement)** | `@guard` decorator, trust levels, badge-based access control | 5 min | `cd demo-one && ./setup.sh` |
-| **[Demo Two: Policy as Code](#demo-two--policy-as-code)** | Runtime policy changes alter enforcement — no code deploy | 10 min | `cd demo-two && ./setup.sh` |
-| **[MCP Guard Demo](#mcp-guard-demo)** | Server identity, per-tool trust, client verification | 5 min | `cd mcp-demo && docker compose up` |
-| **[Agent Guard Demos](#agent-guard-demos)** | 3 framework agents with DID, badges, real-time events | 15 min | `./scripts/setup.sh` |
+| **[Enforcement Demo](#enforcement-demo--zero-to-enforcement)** | `@guard` decorator, trust levels, badge revocation | 5 min | `cd enforcement-demo && ./setup.sh` |
+| **[Demo Two: Policy as Code](#demo-two--policy-as-code)** | Runtime policy changes — no code deploy needed | 10 min | `cd demo-two && ./setup.sh` |
+| **[MCP Guard Demo](#mcp-guard-demo)** | Server identity, client verification, per-tool trust | 5 min | `cd mcp-demo && docker compose up` |
 
-**New to CapiscIO?** Start with Demo One — it takes 5 minutes and shows the core concept.
+### Integration Demos — CapiscIO with real AI frameworks
+
+Requires `OPENAI_API_KEY`. Long-running HTTP servers using the A2A protocol with real LLM calls.
+
+| Demo | What it shows | Time | Quick start |
+|------|---------------|------|-------------|
+| **[Agent Guard Demos](#agent-guard-demos)** | LangChain, CrewAI, LangGraph agents with DIDs, badges, events | 15 min | `./scripts/setup.sh` |
+
+**New to CapiscIO?** Start with the Enforcement Demo — it takes 5 minutes, needs no API keys beyond CapiscIO, and shows the core concept.
 
 ---
 
 ## Prerequisites
 
+**For concept demos** (enforcement-demo, demo-two, mcp-demo):
 - Python 3.11+
 - A free CapiscIO account — sign up at [app.capisc.io](https://app.capisc.io)
 - API key from Dashboard → Settings → API Keys
-- An MCP server registered in the dashboard (for demo-one and demo-two)
 
-> **PyCon attendees:** Run `./setup.sh` at home before the conference. It pre-downloads a ~15 MB binary that the demos need. Conference Wi-Fi is unreliable.
+**Additionally for integration demos** (agents):
+- OpenAI API key (or compatible LLM provider)
+
+> **Tip:** Run `./setup.sh` before going offline — it pre-downloads a ~15 MB binary that the demos need.
 
 ---
 
-## Demo One — Zero to Enforcement
+## Enforcement Demo — Zero to Enforcement
 
 **"5 minutes from zero to trust-enforced MCP tools."**
 
@@ -52,7 +66,7 @@ An MCP server with three tools at different trust levels. A trusted agent (with 
 ### Setup
 
 ```bash
-cd demo-one
+cd enforcement-demo
 ./setup.sh              # Creates venv, installs deps, downloads binary
                         # Auto-creates .env from .env.example if missing
 ```
@@ -90,12 +104,12 @@ identity = CapiscIO.connect(api_key=..., auto_badge=True)
 ### Files
 
 ```
-demo-one/
+enforcement-demo/
 ├── server/main.py          # MCP server with 3 guarded tools
 ├── agents/
 │   ├── trusted_agent.py    # Badged agent (auto_badge=True)
 │   └── untrusted_agent.py  # No-badge agent (auto_badge=False)
-├── run_demo.py             # Orchestrator: 4 scenarios
+├── run_demo.py             # Orchestrator: 5 scenarios
 ├── setup.sh                # Environment setup + binary download
 ├── .env.example            # Credential template
 └── requirements.txt
@@ -178,8 +192,8 @@ demo-two/
 │   └── selective.yaml      # get_price overridden to DV
 ├── scripts/
 │   └── setup_policies.py   # Creates policy proposals via admin JWT
-├── server/main.py           # Same MCP server as demo-one
-├── agents/                  # Same agents as demo-one
+├── server/main.py           # Same MCP server as enforcement-demo
+├── agents/                  # Same agents as enforcement-demo
 ├── run_demo.py              # Interactive 3-phase orchestrator
 ├── setup.sh
 ├── .env.example
@@ -365,10 +379,10 @@ When an agent starts with `--serve`, the SDK (`CapiscIO.connect()`) automaticall
 
 ```
 a2a-demos/
-├── demo-one/                     # Zero to Enforcement (5 min)
+├── enforcement-demo/                 # Zero to Enforcement (5 min)
 │   ├── server/main.py            # MCP server with 3 guarded tools
 │   ├── agents/                   # Trusted + untrusted agents
-│   ├── run_demo.py               # 4-scenario orchestrator
+│   ├── run_demo.py               # 5-scenario orchestrator
 │   └── setup.sh                  # One-command setup
 ├── demo-two/                     # Policy as Code (10 min)
 │   ├── policies/                 # 3 YAML policy files

@@ -1,5 +1,5 @@
 """
-Demo One — Trusted Agent.
+Enforcement Demo — Trusted Agent.
 
 Connects to CapiscIO, obtains a badge, then calls the guarded MCP server.
 With a valid badge, this agent can access tools up to its trust level.
@@ -12,7 +12,7 @@ import os
 
 from capiscio_sdk import CapiscIO, AgentIdentity
 
-logger = logging.getLogger("demo-one.trusted-agent")
+logger = logging.getLogger("enforcement-demo.trusted-agent")
 
 
 def connect() -> AgentIdentity:

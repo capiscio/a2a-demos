@@ -1,4 +1,4 @@
-# Demo One — "Zero to Enforcement"
+# Enforcement Demo — "Zero to Enforcement"
 
 Demonstrates CapiscIO trust enforcement on an MCP server with three tools at different trust levels.
 

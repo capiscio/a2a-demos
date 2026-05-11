@@ -29,7 +29,21 @@ fi
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
 
-# ── 1. Python venv ───────────────────────────────────────────────────────
+# ── 1. Scaffold .env (before anything that might need credentials) ────────
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    echo "✓ .env file found"
+else
+    cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+    echo "⚠️  Created .env from .env.example — edit it with your credentials:"
+    echo "    $SCRIPT_DIR/.env"
+    echo ""
+    echo "   Required:"
+    echo "     CAPISCIO_API_KEY   — from https://app.capisc.io → Settings → API Keys"
+    echo "     CAPISCIO_SERVER_ID — set to 'auto' (default) or a UUID from the dashboard"
+fi
+echo ""
+
+# ── 2. Python venv ───────────────────────────────────────────────────────
 if [ ! -d "$SCRIPT_DIR/.venv" ]; then
     echo "→ Creating Python virtual environment..."
     python3 -m venv "$SCRIPT_DIR/.venv"
@@ -51,30 +65,21 @@ else
     pip install -r "$SCRIPT_DIR/requirements.txt" -q
 fi
 
-# ── 2. Pre-download capiscio-core binary ─────────────────────────────────
+# ── 3. Pre-download capiscio-core binary ─────────────────────────────────
+# This is the CapiscIO trust engine — a ~15 MB Go binary that handles
+# badge verification, DID resolution, and enforcement locally.
+# It runs as a sidecar process alongside the MCP server.
 echo ""
-echo "→ Pre-downloading capiscio-core binary..."
+echo "→ Pre-downloading capiscio-core binary (~15 MB)..."
 python3 -c "
 from capiscio_mcp._core.lifecycle import ensure_binary
 path = ensure_binary()
-print(f'  Binary cached at: {path}')
+print(f'  ✓ Binary cached at: {path}')
 "
-
-# ── 3. Scaffold .env ─────────────────────────────────────────────────────
-echo ""
-if [ -f "$SCRIPT_DIR/.env" ]; then
-    echo "✓ .env file found"
-else
-    cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
-    echo "⚠️  Created .env from .env.example — edit it with your credentials:"
-    echo "    $SCRIPT_DIR/.env"
-    echo ""
-    echo "   Required:"
-    echo "     CAPISCIO_API_KEY   — from https://app.capisc.io → Settings → API Keys"
-    echo "     CAPISCIO_SERVER_ID — from https://app.capisc.io → MCP Servers (or set to 'auto')"
-fi
 
 echo ""
 echo "✓ Setup complete. Run the demo with:"
 echo "    source .venv/bin/activate"
 echo "    python run_demo.py"
+echo ""
+echo "  Tip: Use 'python run_demo.py --auto' to skip interactive pauses."

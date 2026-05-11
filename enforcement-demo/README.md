@@ -16,7 +16,8 @@ cp .env.example .env          # Then edit .env — see below
 
 # 3. Run
 source .venv/bin/activate
-python run_demo.py
+python run_demo.py            # Interactive — pauses between scenarios
+python run_demo.py --auto     # Non-interactive — runs straight through
 ```
 
 ### Required `.env` values
@@ -83,6 +84,23 @@ Connecting agents to CapiscIO registry...
     ✓ Badge revoked (JTI: a1b2c3d4e5f6…)
 
   Result: DENY — badge_revoked: badge has been revoked
+
+══════════════════════════════════════════════════════════════
+  Results
+══════════════════════════════════════════════════════════════
+
+  #    Agent                  Tool             Expected   Actual
+  ──── ────────────────────── ──────────────── ────────── ──────────
+  1    trusted (badged)       get_price        ALLOW      ALLOW      ✓
+  2    trusted (badged)       place_order      ALLOW      ALLOW      ✓
+  3    untrusted (no badge)   get_price        ALLOW      ALLOW      ✓
+  4    untrusted (no badge)   place_order      DENY       DENY       ✓
+  5    trusted (REVOKED)      place_order      DENY       DENY       ✓
+
+  All 5 scenarios passed.
+
+  Key takeaway: Trust is enforced per-tool, earned by proof, and
+  revocable in real time — all via the @guard decorator.
 ```
 
 ## Key Code

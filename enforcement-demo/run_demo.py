@@ -2,13 +2,14 @@
 """
 Enforcement Demo — "Zero to Enforcement"
 
-Runs four scenarios that demonstrate CapiscIO trust enforcement
+Runs five scenarios that demonstrate CapiscIO trust enforcement
 on an MCP server with three tools at different trust levels:
 
   Scenario 1: Trusted agent   → get_price    (level 0)  → ALLOW
   Scenario 2: Trusted agent   → place_order  (level 1)  → ALLOW
   Scenario 3: Untrusted agent → get_price    (level 0)  → ALLOW
   Scenario 4: Untrusted agent → place_order  (level 1)  → DENY
+  Scenario 5: Trusted (revoked) → place_order (level 1) → DENY
 
 The MCP server runs as a subprocess (stdio transport).
 Each agent connects to the CapiscIO registry, obtains (or skips) a badge,
@@ -17,13 +18,15 @@ per-tool trust-level requirements.
 
 Usage:
     source .venv/bin/activate
-    python run_demo.py
+    python run_demo.py            # Interactive (pauses between scenarios)
+    python run_demo.py --auto     # Non-interactive (no pauses)
 
 Prerequisites:
     - .env file with CAPISCIO_API_KEY, CAPISCIO_SERVER_ID, CAPISCIO_SERVER_URL
     - Run ./setup.sh first to install deps and pre-download binary
 """
 
+import argparse
 import asyncio
 import base64
 import json
@@ -42,6 +45,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("capiscio_mcp").setLevel(logging.WARNING)
 logging.getLogger("capiscio_sdk").setLevel(logging.WARNING)
+# Suppress gRPC C-core noise (ev_poll_posix.cc, fork_posix.cc, etc.)
+os.environ.setdefault("GRPC_VERBOSITY", "NONE")
+os.environ.setdefault("GRPC_TRACE", "")
 
 from dotenv import load_dotenv  # noqa: E402
 import httpx  # noqa: E402
@@ -87,8 +93,14 @@ def result_line(outcome: str, detail: str) -> None:
     print(f"  Result: {color}{BOLD}{outcome}{RESET} — {detail}")
 
 
+# ── CLI flag ─────────────────────────────────────────────────────────────
+AUTO_MODE = "--auto" in sys.argv or "--no-pause" in sys.argv
+
+
 def pause(hint: str = "") -> None:
     """Wait for the presenter to press Enter before continuing."""
+    if AUTO_MODE:
+        return
     msg = f"\n  {YELLOW}▸ Press Enter to continue{RESET}"
     if hint:
         msg += f"  {YELLOW}({hint}){RESET}"
@@ -226,10 +238,13 @@ async def run_demo() -> None:
     # ── Scenarios ────────────────────────────────────────────────────
     banner("Running Enforcement Scenarios")
 
+    results: list[tuple[int, str, str, str, str]] = []  # (num, agent, tool, expected, outcome)
+
     # Scenario 1: Trusted agent → open tool → ALLOW
     scenario_header(1, "trusted (badged)", "get_price", 0, "ALLOW")
     outcome, detail = await call_tool(trusted_badge, "get_price", {"sku": "WIDGET-A"})
     result_line(outcome, detail)
+    results.append((1, "trusted (badged)", "get_price", "ALLOW", outcome))
     pause("next: trusted agent calls a restricted tool")
 
     # Scenario 2: Trusted agent → restricted tool → ALLOW
@@ -238,12 +253,14 @@ async def run_demo() -> None:
         trusted_badge, "place_order", {"sku": "WIDGET-B", "quantity": 3}
     )
     result_line(outcome, detail)
+    results.append((2, "trusted (badged)", "place_order", "ALLOW", outcome))
     pause("next: untrusted agent calls an open tool")
 
     # Scenario 3: Untrusted agent → open tool → ALLOW
     scenario_header(3, "untrusted (no badge)", "get_price", 0, "ALLOW")
     outcome, detail = await call_tool(untrusted_badge, "get_price", {"sku": "WIDGET-C"})
     result_line(outcome, detail)
+    results.append((3, "untrusted (no badge)", "get_price", "ALLOW", outcome))
     pause("next: untrusted agent calls a restricted tool")
 
     # Scenario 4: Untrusted agent → restricted tool → DENY
@@ -252,6 +269,7 @@ async def run_demo() -> None:
         untrusted_badge, "place_order", {"sku": "WIDGET-A", "quantity": 1}
     )
     result_line(outcome, detail)
+    results.append((4, "untrusted (no badge)", "place_order", "DENY", outcome))
     pause("next: revoke trusted agent's badge and retry")
 
     # Scenario 5: Revoke the trusted agent's badge, then retry → DENY
@@ -268,27 +286,34 @@ async def run_demo() -> None:
         trusted_badge, "place_order", {"sku": "WIDGET-A", "quantity": 1}
     )
     result_line(outcome, detail)
+    results.append((5, "trusted (REVOKED)", "place_order", "DENY", outcome))
     pause("show summary")
 
-    # ── Summary ──────────────────────────────────────────────────────
-    banner("Summary")
-    print("  The @guard decorator on the MCP server enforced per-tool")
-    print("  trust-level requirements.  The trusted agent's badge (level 1,")
-    print("  earned via Proof of Possession) gave it access to place_order,")
-    print("  while the untrusted agent was denied — even though both could")
-    print("  still call get_price (level 0, open to all).")
+    # ── Summary table ────────────────────────────────────────────────
+    banner("Results")
+    print(f"  {BOLD}{'#':<4} {'Agent':<22} {'Tool':<16} {'Expected':<10} {'Actual':<10} {'':>2}{RESET}")
+    print(f"  {'─' * 4} {'─' * 22} {'─' * 16} {'─' * 10} {'─' * 10} {'─' * 2}")
+
+    all_pass = True
+    for num, agent, tool, expected, actual in results:
+        match = actual == expected
+        if not match:
+            all_pass = False
+        icon = f"{GREEN}✓{RESET}" if match else f"{RED}✗{RESET}"
+        actual_color = GREEN if actual == "ALLOW" else RED
+        print(f"  {num:<4} {agent:<22} {tool:<16} {expected:<10} {actual_color}{actual:<10}{RESET} {icon}")
+
     print()
-    print("  After revoking the trusted agent's badge, even it was denied —")
-    print("  proving that trust is dynamic and can be revoked in real time.")
+    if all_pass:
+        print(f"  {GREEN}{BOLD}All 5 scenarios passed.{RESET}")
+    else:
+        print(f"  {RED}{BOLD}Some scenarios did not match expected outcomes.{RESET}")
+
     print()
-    print("  Trust levels are earned, not declared:")
-    print("    Level 0 — self-signed (no external validation)")
-    print("    Level 1 — PoP (cryptographic key ownership proof)")
-    print("    Level 2 — DV (domain validation, like Let's Encrypt)")
-    print("    Level 3 — OV (organization validation)")
-    print("    Level 4 — EV (extended validation)")
+    print(f"  {BOLD}Key takeaway:{RESET} Trust is enforced per-tool, earned by proof, and")
+    print(f"  revocable in real time — all via the {CYAN}@guard{RESET} decorator.")
     print()
-    print(f"  View events in the dashboard: {CYAN}https://app.capisc.io{RESET}")
+    print(f"  View audit trail → {CYAN}https://app.capisc.io{RESET}")
     print()
 
     # Clean up — suppress the expected "Channel closed!" log from

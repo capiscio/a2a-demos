@@ -195,11 +195,13 @@ async def call_tool(badge: str | None, tool_name: str, args: dict) -> tuple[str,
 async def run_four_scenarios(
     trusted_badge: str | None,
     untrusted_badge: str | None,
-) -> list[tuple[str, str]]:
+    expected: list[str],
+) -> bool:
     """
-    Run the standard four scenarios and return results.
+    Run the standard four scenarios, print results, and return pass/fail.
 
-    Returns list of (outcome, detail) tuples.
+    expected: list of 4 expected outcomes, e.g. ["ALLOW", "ALLOW", "ALLOW", "DENY"]
+    Returns True if all outcomes match expected.
     """
     results = []
 
@@ -231,7 +233,23 @@ async def run_four_scenarios(
     result_line(outcome, detail)
     results.append((outcome, detail))
 
-    return results
+    # ── Phase verdict ────────────────────────────────────────────────
+    actuals = [r[0] for r in results]
+    passed = all(a == e for a, e in zip(actuals, expected))
+    if passed:
+        print(f"\n  {GREEN}{BOLD}✓ PHASE PASSED{RESET} — all 4 scenarios matched expected outcomes")
+    else:
+        print(f"\n  {RED}{BOLD}✗ PHASE FAILED{RESET} — mismatches:")
+        labels = [
+            "trusted → get_price",
+            "trusted → place_order",
+            "untrusted → get_price",
+            "untrusted → place_order",
+        ]
+        for label, exp, act in zip(labels, expected, actuals):
+            if exp != act:
+                print(f"    {label}: expected {exp}, got {RED}{act}{RESET}")
+    return passed
 
 
 # ── Main demo ────────────────────────────────────────────────────────────
@@ -287,7 +305,8 @@ async def run_demo() -> None:
     print(f"{YELLOW}{'─' * 60}{RESET}")
     input(f"\n  Press {BOLD}Enter{RESET} when the baseline policy is active... ")
 
-    await run_four_scenarios(trusted_badge, untrusted_badge)
+    await run_four_scenarios(trusted_badge, untrusted_badge,
+                            expected=["ALLOW", "ALLOW", "ALLOW", "DENY"])
 
     # ── Phase 2: Lockdown ────────────────────────────────────────────
     phase_header(
@@ -313,7 +332,8 @@ async def run_demo() -> None:
     print(f"{YELLOW}{'─' * 60}{RESET}")
     input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
 
-    await run_four_scenarios(trusted_badge, untrusted_badge)
+    await run_four_scenarios(trusted_badge, untrusted_badge,
+                            expected=["DENY", "DENY", "DENY", "DENY"])
 
     # ── Phase 3: Selective ───────────────────────────────────────────
     phase_header(
@@ -339,7 +359,8 @@ async def run_demo() -> None:
     print(f"{YELLOW}{'─' * 60}{RESET}")
     input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
 
-    await run_four_scenarios(trusted_badge, untrusted_badge)
+    await run_four_scenarios(trusted_badge, untrusted_badge,
+                            expected=["ALLOW", "ALLOW", "DENY", "DENY"])
 
     # ── Summary ──────────────────────────────────────────────────────
     banner("Summary")

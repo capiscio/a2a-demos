@@ -37,9 +37,10 @@ else
     echo "⚠️  Created .env from .env.example — edit it with your credentials:"
     echo "    $SCRIPT_DIR/.env"
     echo ""
-    echo "   Required:"
-    echo "     CAPISCIO_API_KEY   — from https://app.capisc.io → Settings → API Keys"
-    echo "     CAPISCIO_SERVER_ID — set to 'auto' (default) or a UUID from the dashboard"
+    echo "   Only one value required:"
+    echo "     CAPISCIO_API_KEY — from https://app.capisc.io → Settings → API Keys"
+    echo ""
+    echo "   Everything else has sensible defaults (see .env.example for details)."
 fi
 echo ""
 

@@ -20,12 +20,13 @@ python run_demo.py            # Interactive — pauses between scenarios
 python run_demo.py --auto     # Non-interactive — runs straight through
 ```
 
-### Required `.env` values
+### `.env` values
 
-| Variable | Where to get it | Notes |
-|----------|----------------|-------|
-| `CAPISCIO_API_KEY` | [app.capisc.io](https://app.capisc.io) → Settings → API Keys | Starts with `sk_live_` or `sk_test_` |
-| `CAPISCIO_SERVER_ID` | Dashboard → MCP Servers → New Server | Set to `auto` to create one automatically |
+| Variable | Required? | Default | Notes |
+|----------|-----------|---------|-------|
+| `CAPISCIO_API_KEY` | **Yes** | — | From [app.capisc.io](https://app.capisc.io) → Settings → API Keys |
+| `CAPISCIO_SERVER_ID` | No | `auto` | Auto-registers an MCP server on first run. Or paste a UUID from the dashboard |
+| `CAPISCIO_SERVER_URL` | No | `https://registry.capisc.io` | Only change for self-hosted or staging environments |
 
 ## What You'll See
 

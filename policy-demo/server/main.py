@@ -1,5 +1,5 @@
 """
-Demo Two — Guarded MCP Server.
+Policy Demo — Guarded MCP Server.
 
 Same MCP server as demo-one with three tools at different trust levels:
 
@@ -9,7 +9,7 @@ Same MCP server as demo-one with three tools at different trust levels:
   place_order        1 (PoP/REG+)     Registered agents with badge
   cancel_all_orders  2 (DV+)          Domain-validated agents
 
-What's different in demo-two: the ORG POLICY can override these levels
+What's different in the policy demo: the ORG POLICY can override these levels
 at runtime.  The @guard decorator queries the embedded PDP, which
 evaluates the active policy bundle.  When the admin changes the policy
 in the dashboard, enforcement changes — no code deploy needed.
@@ -33,7 +33,7 @@ logging.basicConfig(
     format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
     stream=sys.stderr,
 )
-logger = logging.getLogger("demo-two.server")
+logger = logging.getLogger("policy-demo.server")
 
 from dotenv import load_dotenv  # noqa: E402
 

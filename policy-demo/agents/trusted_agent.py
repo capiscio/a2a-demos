@@ -1,5 +1,5 @@
 """
-Demo Two — Trusted Agent.
+Policy Demo — Trusted Agent.
 
 Connects to CapiscIO with a badge (auto_badge=True).
 With a valid badge (PoP → DV-equivalent), this agent can access tools
@@ -14,7 +14,7 @@ import os
 
 from capiscio_sdk import CapiscIO, AgentIdentity
 
-logger = logging.getLogger("demo-two.trusted-agent")
+logger = logging.getLogger("policy-demo.trusted-agent")
 
 
 def connect() -> AgentIdentity:

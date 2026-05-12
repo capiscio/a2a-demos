@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Demo Two — "Policy as Code"
+Policy Demo — "Policy as Code"
 
 Shows how org-level policy changes alter enforcement at runtime
 WITHOUT any code changes or redeployments.  The same MCP server and
@@ -212,7 +212,7 @@ async def run_four_scenarios(
 
 
 async def run_demo() -> None:
-    banner("CapiscIO Demo Two — Policy as Code")
+    banner("CapiscIO Policy Demo — Policy as Code")
 
     # ── Connect agents ───────────────────────────────────────────────
     print(f"{BOLD}Connecting agents to CapiscIO registry...{RESET}")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Demo Two — Policy Setup Script.
+Policy Demo — Policy Setup Script.
 
 Pre-creates three policy proposals in the CapiscIO registry and
 approves the baseline policy as the active default.
@@ -99,7 +99,7 @@ def main() -> None:
     check_env()
 
     print(f"\n{CYAN}{'═' * 60}{RESET}")
-    print(f"{CYAN}  Demo Two — Policy Setup{RESET}")
+    print(f"{CYAN}  Policy Demo — Policy Setup{RESET}")
     print(f"{CYAN}{'═' * 60}{RESET}\n")
     print(f"  Registry : {SERVER_URL}")
     print(f"  Org ID   : {ORG_ID}")

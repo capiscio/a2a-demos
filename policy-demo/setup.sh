@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Demo Two — Setup Script
+# Policy Demo — Setup Script
 #
 # Usage:
 #   ./setup.sh           # Install from PyPI
@@ -23,9 +23,9 @@ done
 
 echo "═══════════════════════════════════════════════════════"
 if [ "$USE_LOCAL" = true ]; then
-echo "  CapiscIO Demo Two — Setup (LOCAL REPOS)"
+echo "  CapiscIO Policy Demo — Setup (LOCAL REPOS)"
 else
-echo "  CapiscIO Demo Two — Setup (PyPI)"
+echo "  CapiscIO Policy Demo — Setup (PyPI)"
 fi
 echo "═══════════════════════════════════════════════════════"
 

@@ -1,4 +1,4 @@
-# Demo Two — "Policy as Code"
+# Policy Demo — "Policy as Code"
 
 Demonstrates how org-level policy changes alter enforcement at runtime WITHOUT any code changes or redeployments.
 

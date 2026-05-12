@@ -276,19 +276,18 @@ async def run_demo() -> None:
         ("untrusted", "get_price", "ALLOW", "open tool"),
         ("untrusted", "place_order", "DENY", "no badge < DV"),
     ])
-    show_policy_yaml("baseline")
 
-    await run_four_scenarios(trusted_badge, untrusted_badge)
-
-    # ── Pause for policy switch ──────────────────────────────────────
     print(f"\n{YELLOW}{'─' * 60}{RESET}")
     print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
-    print(f"  Switch to the {BOLD}lockdown{RESET} policy in the dashboard:")
+    print(f"  Apply the {BOLD}baseline{RESET} policy in the dashboard:")
     print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
-    print(f"    2. Approve the {BOLD}lockdown{RESET} policy proposal")
-    print("    3. Wait a few seconds for the PDP bundle to refresh")
+    print(f"    2. Create/activate the {BOLD}baseline{RESET} policy with this YAML:")
+    show_policy_yaml("baseline")
+    print(f"    3. Wait a few seconds for the PDP bundle to refresh")
     print(f"{YELLOW}{'─' * 60}{RESET}")
-    input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
+    input(f"\n  Press {BOLD}Enter{RESET} when the baseline policy is active... ")
+
+    await run_four_scenarios(trusted_badge, untrusted_badge)
 
     # ── Phase 2: Lockdown ────────────────────────────────────────────
     phase_header(
@@ -303,19 +302,18 @@ async def run_demo() -> None:
         ("untrusted", "get_price", "DENY", "no badge < EV"),
         ("untrusted", "place_order", "DENY", "no badge < EV"),
     ])
-    show_policy_yaml("lockdown")
 
-    await run_four_scenarios(trusted_badge, untrusted_badge)
-
-    # ── Pause for policy switch ──────────────────────────────────────
     print(f"\n{YELLOW}{'─' * 60}{RESET}")
     print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
-    print(f"  Switch to the {BOLD}selective{RESET} policy in the dashboard:")
+    print(f"  Switch to the {BOLD}lockdown{RESET} policy in the dashboard:")
     print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
-    print(f"    2. Approve the {BOLD}selective{RESET} policy proposal")
-    print("    3. Wait a few seconds for the PDP bundle to refresh")
+    print(f"    2. Activate the {BOLD}lockdown{RESET} policy with this YAML:")
+    show_policy_yaml("lockdown")
+    print(f"    3. Wait a few seconds for the PDP bundle to refresh")
     print(f"{YELLOW}{'─' * 60}{RESET}")
-    input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
+    input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
+
+    await run_four_scenarios(trusted_badge, untrusted_badge)
 
     # ── Phase 3: Selective ───────────────────────────────────────────
     phase_header(
@@ -330,7 +328,16 @@ async def run_demo() -> None:
         ("untrusted", "get_price", "DENY", "no badge < DV"),
         ("untrusted", "place_order", "DENY", "no badge < DV"),
     ])
+
+    print(f"\n{YELLOW}{'─' * 60}{RESET}")
+    print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
+    print(f"  Switch to the {BOLD}selective{RESET} policy in the dashboard:")
+    print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
+    print(f"    2. Activate the {BOLD}selective{RESET} policy with this YAML:")
     show_policy_yaml("selective")
+    print(f"    3. Wait a few seconds for the PDP bundle to refresh")
+    print(f"{YELLOW}{'─' * 60}{RESET}")
+    input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
 
     await run_four_scenarios(trusted_badge, untrusted_badge)
 

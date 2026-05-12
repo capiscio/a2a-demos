@@ -59,7 +59,7 @@ jobs:
       
       - name: Install shared capiscio_events module
         run: |
-          cd shared
+          cd multi-agent-demo/shared
           pip install -e .
       
       - name: Verify import

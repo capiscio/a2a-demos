@@ -28,8 +28,12 @@ import logging
 import os
 import sys
 
+# Suppress gRPC C-core noise
+os.environ.setdefault("GRPC_VERBOSITY", "NONE")
+os.environ.setdefault("GRPC_TRACE", "")
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
     stream=sys.stderr,
 )

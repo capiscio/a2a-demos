@@ -38,6 +38,10 @@ import logging
 import os
 import sys
 
+# Suppress gRPC C-core noise (must be before any gRPC import)
+os.environ.setdefault("GRPC_VERBOSITY", "NONE")
+os.environ.setdefault("GRPC_TRACE", "")
+
 # ── Logging ──────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.WARNING,
@@ -105,6 +109,28 @@ def policy_table(rows: list[tuple[str, str, str, str]]) -> None:
     for agent, tool, expected, reason in rows:
         color = GREEN if expected == "ALLOW" else RED
         print(f"  {agent:<22} {tool:<18} {color}{expected:<8}{RESET} {DIM}{reason}{RESET}")
+
+
+def show_policy_yaml(policy_name: str) -> None:
+    """Display the policy YAML contents for the current phase."""
+    policy_path = os.path.join(os.path.dirname(__file__), "policies", f"{policy_name}.yaml")
+    if not os.path.exists(policy_path):
+        return
+    with open(policy_path) as f:
+        content = f.read()
+    # Strip leading comment block (lines starting with #)
+    lines = content.splitlines()
+    yaml_lines = []
+    past_comments = False
+    for line in lines:
+        if not past_comments and (line.startswith("#") or line.strip() == ""):
+            continue
+        past_comments = True
+        yaml_lines.append(line)
+    print(f"\n  {DIM}┌─ {policy_name}.yaml ─────────────────────────────────{RESET}")
+    for line in yaml_lines:
+        print(f"  {DIM}│{RESET} {YELLOW}{line}{RESET}")
+    print(f"  {DIM}└─────────────────────────────────────────────────────{RESET}")
 
 
 # ── Auto policy switching ────────────────────────────────────────────────
@@ -250,6 +276,7 @@ async def run_demo() -> None:
         ("untrusted", "get_price", "ALLOW", "open tool"),
         ("untrusted", "place_order", "DENY", "no badge < DV"),
     ])
+    show_policy_yaml("baseline")
 
     await run_four_scenarios(trusted_badge, untrusted_badge)
 
@@ -276,6 +303,7 @@ async def run_demo() -> None:
         ("untrusted", "get_price", "DENY", "no badge < EV"),
         ("untrusted", "place_order", "DENY", "no badge < EV"),
     ])
+    show_policy_yaml("lockdown")
 
     await run_four_scenarios(trusted_badge, untrusted_badge)
 
@@ -302,6 +330,7 @@ async def run_demo() -> None:
         ("untrusted", "get_price", "DENY", "no badge < DV"),
         ("untrusted", "place_order", "DENY", "no badge < DV"),
     ])
+    show_policy_yaml("selective")
 
     await run_four_scenarios(trusted_badge, untrusted_badge)
 

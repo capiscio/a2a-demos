@@ -127,10 +127,10 @@ def show_policy_yaml(policy_name: str) -> None:
             continue
         past_comments = True
         yaml_lines.append(line)
-    print(f"\n  {DIM}┌─ {policy_name}.yaml ─────────────────────────────────{RESET}")
+    print(f"\n  {DIM}── {policy_name}.yaml ──{RESET}")
     for line in yaml_lines:
-        print(f"  {DIM}│{RESET} {YELLOW}{line}{RESET}")
-    print(f"  {DIM}└─────────────────────────────────────────────────────{RESET}")
+        print(f"  {YELLOW}{line}{RESET}")
+    print()
 
 
 # ── Auto policy switching ────────────────────────────────────────────────

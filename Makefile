@@ -1,4 +1,4 @@
-.PHONY: dev install clean test lint enforcement-demo multi-agent-demo help video-enforcement video-agents
+.PHONY: dev install clean test lint enforcement-demo multi-agent-demo help
 
 # ═══════════════════════════════════════════════════════════════
 # A2A Demos — Development Makefile

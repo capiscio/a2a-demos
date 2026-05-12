@@ -12,7 +12,7 @@ cd enforcement-demo
 ./setup.sh                    # Creates venv, installs deps, downloads binary
 
 # 2. Add your credentials
-cp .env.example .env          # Then edit .env — see below
+                              # Edit .env — add CAPISCIO_API_KEY (see below)
 
 # 3. Run
 source .venv/bin/activate
@@ -102,7 +102,7 @@ Connecting agents to CapiscIO registry...
   All 5 scenarios passed.
 
   Key takeaway: Trust is enforced per-tool, earned by proof, and
-  revocable in real time — all via the @guard decorator.
+  revocable in real time — all via `@server.tool(min_trust_level=N)`.
 ```
 
 ## Key Code
@@ -129,7 +129,7 @@ identity = CapiscIO.connect(api_key="sk_live_...", auto_badge=True)
 1. The MCP server starts and obtains its identity (DID + badge) via `MCPServerIdentity.from_env()`
 2. The trusted agent connects to the registry, proves key ownership (PoP), and receives a trust badge
 3. The untrusted agent connects but skips badge issuance
-4. Each agent calls tools — the `@guard` decorator on the server checks the badge's trust level
+4. Each agent calls tools — `@server.tool(min_trust_level=N)` checks the badge's trust level
 5. The trusted agent's badge is revoked via the API — subsequent calls are denied
 
 ## Files

@@ -17,7 +17,7 @@ Self-contained, no LLM required. Each focuses on one security concept with an in
 
 | Demo | What it shows | Time | Quick start |
 |------|---------------|------|-------------|
-| **[Enforcement Demo](#enforcement-demo--zero-to-enforcement)** | `@guard` decorator, trust levels, badge revocation | 5 min | `cd enforcement-demo && ./setup.sh` |
+| **[Enforcement Demo](#enforcement-demo--zero-to-enforcement)** | `min_trust_level` per tool, badge verification, revocation | 5 min | `cd enforcement-demo && ./setup.sh` |
 | **[MCP Guard Demo](#mcp-guard-demo)** | Server identity, client verification, per-tool trust | 5 min | `cd mcp-demo && docker compose up` |
 
 ### Integration Demos — CapiscIO with real AI frameworks
@@ -54,7 +54,7 @@ An MCP server with three tools at different trust levels. A trusted agent (with 
 ```bash
 cd enforcement-demo
 ./setup.sh                    # Creates venv, installs deps, downloads binary
-cp .env.example .env          # Then edit: add CAPISCIO_API_KEY
+                              # Edit .env — add CAPISCIO_API_KEY
 source .venv/bin/activate
 python run_demo.py
 ```
@@ -88,7 +88,6 @@ identity = CapiscIO.connect(api_key="sk_live_...", auto_badge=True)
 ```
 
 **→ Full details, expected output, and troubleshooting: [`enforcement-demo/README.md`](enforcement-demo/README.md)**
-```
 
 ---
 

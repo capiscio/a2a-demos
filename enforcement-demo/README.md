@@ -25,8 +25,9 @@ python run_demo.py --auto     # Non-interactive — runs straight through
 | Variable | Required? | Default | Notes |
 |----------|-----------|---------|-------|
 | `CAPISCIO_API_KEY` | **Yes** | — | From [app.capisc.io](https://app.capisc.io) → Settings → API Keys |
+| `CAPISCIO_SERVER_URL` | No | `https://registry.capisc.io` | Python SDK: badge issuance, agent registration |
+| `CAPISCIO_REGISTRY_ENDPOINT` | No | `https://registry.capisc.io` | Go binary: JWKS badge verification. Must match `SERVER_URL` |
 | `CAPISCIO_SERVER_ID` | No | `auto` | Auto-registers an MCP server on first run. Or paste a UUID from the dashboard |
-| `CAPISCIO_SERVER_URL` | No | `https://registry.capisc.io` | Only change for self-hosted or staging environments |
 
 ## What You'll See
 

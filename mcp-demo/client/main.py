@@ -22,13 +22,57 @@ import os
 import sys
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
     stream=sys.stderr,
 )
-logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("capiscio_mcp").setLevel(logging.WARNING)
+logging.getLogger("capiscio_sdk").setLevel(logging.WARNING)
 
 from capiscio_mcp.integrations.mcp import CapiscioMCPClient  # noqa: E402
+
+
+# ── Formatting helpers ───────────────────────────────────────────────────
+
+BOLD = "\033[1m"
+DIM = "\033[2m"
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+CYAN = "\033[96m"
+RESET = "\033[0m"
+
+
+def banner(text: str) -> None:
+    width = 60
+    print(f"\n{CYAN}{'═' * width}{RESET}")
+    print(f"{CYAN}  {text}{RESET}")
+    print(f"{CYAN}{'═' * width}{RESET}\n")
+
+
+def scenario_header(num: int, tool: str, level: int, badge_status: str, expected: str) -> None:
+    color = GREEN if expected == "ALLOW" else RED
+    print(f"\n{BOLD}── Scenario {num} ──────────────────────────────────────────{RESET}")
+    print(f"  Tool  : {tool} (min_trust_level={level})")
+    print(f"  Badge : {badge_status}")
+    print(f"  Expect: {color}{expected}{RESET}")
+    print()
+
+
+def result_line(outcome: str, detail: str) -> None:
+    color = GREEN if outcome == "ALLOW" else RED
+    print(f"  Result: {color}{BOLD}{outcome}{RESET} — {detail}")
+
+
+def pause(hint: str = "") -> None:
+    """Wait for the presenter to press Enter before continuing."""
+    msg = f"\n  {YELLOW}▸ Press Enter to continue{RESET}"
+    if hint:
+        msg += f"  {YELLOW}({hint}){RESET}"
+    input(msg + " ")
+    print()
 
 
 async def run_demo() -> None:
@@ -39,7 +83,11 @@ async def run_demo() -> None:
     agent_badge = os.environ.get("CAPISCIO_AGENT_BADGE")
     min_trust_level = int(os.environ.get("CAPISCIO_MIN_TRUST_LEVEL", "1"))
 
-    logger.info("Connecting to MCP server (command=%s %s)…", server_command, server_args)
+    banner("CapiscIO MCP Demo — Server Identity & Client Verification")
+
+    print(f"{BOLD}Connecting to MCP server...{RESET}")
+    print(f"  Command: {server_command} {' '.join(server_args)}")
+    print()
 
     async with CapiscioMCPClient(
         command=server_command,
@@ -49,58 +97,119 @@ async def run_demo() -> None:
         fail_on_unverified=(min_trust_level > 0),
     ) as client:
 
-        # ── Server identity report ─────────────────────────────────────────
-        logger.info("Server DID          : %s", client.server_did or "(not disclosed)")
-        logger.info("Server trust level  : %s", client.server_trust_level)
-        logger.info("Server state        : %s", client.server_state)
+        # ── Server identity report ─────────────────────────────────────
+        banner("Server Identity Verification")
+        server_did = client.server_did or "(not disclosed)"
+        trust_level = client.server_trust_level
+        state = client.server_state
 
-        # ── list_files: open to any caller ────────────────────────────────
-        logger.info("\n--- list_files /tmp (min_trust_level=0) ---")
+        state_color = GREEN if "VERIFIED" in str(state).upper() else RED
+        print(f"  Server DID          : {CYAN}{server_did}{RESET}")
+        print(f"  Server trust level  : {BOLD}{trust_level}{RESET}")
+        print(f"  Server state        : {state_color}{BOLD}{state}{RESET}")
+        print()
+        print(f"  {DIM}The client verified the server's DID + badge from the{RESET}")
+        print(f"  {DIM}initialize response _meta (RFC-007).{RESET}")
+
+        badge_label = "agent badge (level unknown)" if agent_badge else "none"
+
+        pause("next: call an open tool (list_files)")
+
+        # ── Scenario 1: list_files — open to any caller ────────────────
+        scenario_header(1, "list_files", 0, badge_label, "ALLOW")
         try:
-            result = await client.call_tool("list_files", {"directory": "/tmp"})
-            logger.info("Files: %s", result)
+            result = await client.call_tool("list_files", {"directory": "."})
+            if isinstance(result, list):
+                text = " ".join(getattr(item, "text", str(item)) for item in result)
+            elif hasattr(result, "content"):
+                text = " ".join(getattr(item, "text", str(item)) for item in result.content)
+            else:
+                text = str(result)
+            result_line("ALLOW", text[:120] + ("…" if len(text) > 120 else ""))
         except Exception as exc:
-            logger.warning("list_files failed: %s", exc)
+            result_line("ERROR", str(exc))
 
-        # ── read_file: requires trust level 2 ────────────────────────────
-        logger.info("\n--- read_file (min_trust_level=2) ---")
+        pause("next: call a restricted tool (read_file, level 2)")
+
+        # ── Scenario 2: read_file — requires trust level 2 ────────────
+        expected = "ALLOW" if agent_badge else "DENY"
+        scenario_header(2, "read_file", 2, badge_label, expected)
         if agent_badge:
             try:
-                result = await client.call_tool(
-                    "read_file",
-                    {"path": "/tmp/capiscio-demo.txt"},
-                )
-                logger.info("File content: %s", result)
+                result = await client.call_tool("read_file", {"path": "test.txt"})
+                if isinstance(result, list):
+                    text = " ".join(getattr(item, "text", str(item)) for item in result)
+                elif hasattr(result, "content"):
+                    text = " ".join(getattr(item, "text", str(item)) for item in result.content)
+                else:
+                    text = str(result)
+                lower = text.lower()
+                if any(kw in lower for kw in ("denied", "badge_missing", "badge_invalid", "trust")):
+                    result_line("DENY", text)
+                else:
+                    result_line("ALLOW", text)
             except Exception as exc:
-                # Expected for lower-trust badges
-                logger.info("read_file result: %s", exc)
+                result_line("DENY", str(exc))
         else:
-            logger.info(
-                "No agent badge provided — read_file (trust level 2) will be denied. "
-                "Set CAPISCIO_AGENT_BADGE to test with a real badge."
-            )
+            print(f"  {DIM}No agent badge — skipping call (would be denied).{RESET}")
+            print(f"  {DIM}Set CAPISCIO_AGENT_BADGE to test with a real badge.{RESET}")
+            result_line("DENY", "badge_missing: no agent badge provided")
 
-        # ── write_file: requires trust level 3 ───────────────────────────
-        logger.info("\n--- write_file (min_trust_level=3) ---")
-        logger.info(
-            "write_file requires trust level 3 — needs a level-3 badge to succeed."
-        )
+        pause("next: call a high-trust tool (write_file, level 3)")
+
+        # ── Scenario 3: write_file — requires trust level 3 ───────────
+        scenario_header(3, "write_file", 3, badge_label, "DENY")
         if agent_badge:
             try:
                 result = await client.call_tool(
                     "write_file",
-                    {
-                        "path": "/tmp/capiscio-demo.txt",
-                        "content": "Hello from CapiscIO MCP demo!\n",
-                    },
+                    {"path": "test.txt", "content": "Hello from CapiscIO!\n"},
                 )
-                logger.info("write_file result: %s", result)
+                if isinstance(result, list):
+                    text = " ".join(getattr(item, "text", str(item)) for item in result)
+                elif hasattr(result, "content"):
+                    text = " ".join(getattr(item, "text", str(item)) for item in result.content)
+                else:
+                    text = str(result)
+                lower = text.lower()
+                if any(kw in lower for kw in ("denied", "badge_missing", "badge_invalid", "trust")):
+                    result_line("DENY", text)
+                else:
+                    result_line("ALLOW", text)
             except Exception as exc:
-                logger.info("write_file result: %s", exc)
+                result_line("DENY", str(exc))
+        else:
+            print(f"  {DIM}No agent badge — skipping call (would be denied).{RESET}")
+            result_line("DENY", "badge_missing: no agent badge provided")
+
+        pause("show summary")
+
+        # ── Summary ────────────────────────────────────────────────────
+        banner("Summary")
+        print("  The MCP server obtained its identity automatically via")
+        print("  MCPServerIdentity.from_env() — one line of code.")
+        print()
+        print("  The client verified the server's DID and badge from the")
+        print("  initialize response before calling any tools.")
+        print()
+        print(f"  {BOLD}Bidirectional trust:{RESET}")
+        print("    Servers prove identity to clients (RFC-007)")
+        print("    Clients prove trust to servers via badges (RFC-006)")
+        print("    Both are cryptographically verified — no config flags")
+        print()
+        print(f"  View events: {CYAN}https://app.capisc.io{RESET}")
+        print()
+
+    # Clean up
+    logging.getLogger("capiscio_sdk.badge_keeper").setLevel(logging.CRITICAL)
 
 
 def main() -> None:
-    asyncio.run(run_demo())
+    try:
+        asyncio.run(run_demo())
+    except KeyboardInterrupt:
+        print("\n\nDemo interrupted.")
+        sys.exit(0)
 
 
 if __name__ == "__main__":

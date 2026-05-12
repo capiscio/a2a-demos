@@ -102,6 +102,15 @@ def result_line(outcome: str, detail: str) -> None:
     print(f"    {color}{symbol} {outcome}{RESET} — {detail}")
 
 
+def pause(hint: str = "") -> None:
+    """Wait for the presenter to press Enter before continuing."""
+    msg = f"\n  {YELLOW}▸ Press Enter to continue{RESET}"
+    if hint:
+        msg += f"  {YELLOW}({hint}){RESET}"
+    input(msg + " ")
+    print()
+
+
 def policy_table(rows: list[tuple[str, str, str, str]]) -> None:
     """Print expected outcomes table for a phase."""
     print(f"\n  {DIM}{'Agent':<22} {'Tool':<18} {'Expected':<8}{RESET}")
@@ -138,58 +147,76 @@ def show_policy_yaml(policy_name: str) -> None:
 
 # ── Tool caller ──────────────────────────────────────────────────────────
 
+SERVER_CMD = sys.executable
+SERVER_ARGS = [os.path.join(os.path.dirname(__file__), "server", "main.py")]
 
-async def call_tool(badge: str | None, tool_name: str, args: dict) -> tuple[str, str]:
-    """Spawn the MCP server, call one tool, return (outcome, detail)."""
-    server_cmd = sys.executable
-    server_args = [os.path.join(os.path.dirname(__file__), "server", "main.py")]
+DENY_KEYWORDS = (
+    "denied", "insufficient", "trust", "guard",
+    "badge_missing", "badge_invalid", "badge_expired",
+    "badge_revoked", "not_allowed", "issuer_untrusted",
+    "policy_denied",
+)
 
+
+def _parse_result(result: object) -> tuple[str, str]:
+    """Extract (outcome, detail) from a CallToolResult."""
+    is_error = getattr(result, "isError", False)
+
+    if isinstance(result, list):
+        text = " ".join(getattr(item, "text", str(item)) for item in result)
+    elif hasattr(result, "content"):
+        text = " ".join(
+            getattr(item, "text", str(item)) for item in result.content
+        )
+    else:
+        text = str(result)
+
+    lower = text.lower()
+    if any(kw in lower for kw in DENY_KEYWORDS):
+        return ("DENY", text)
+    if is_error:
+        return ("ERROR", text)
+    return ("ALLOW", text)
+
+
+async def _call_tools_batched(
+    badge: str | None,
+    calls: list[tuple[str, dict]],
+) -> list[tuple[str, str]]:
+    """Open ONE server session and execute multiple tool calls against it.
+
+    This avoids re-spawning the MCP server (and its registry handshake +
+    policy-bundle fetch) for every single call — the PDP stays warm.
+    """
+    results: list[tuple[str, str]] = []
     try:
         async with CapiscioMCPClient(
-            command=server_cmd,
-            args=server_args,
+            command=SERVER_CMD,
+            args=SERVER_ARGS,
             badge=badge,
             min_trust_level=0,
             fail_on_unverified=False,
         ) as client:
-            result = await client.call_tool(tool_name, args)
-
-            # Check isError on the result object (CallToolResult)
-            is_error = getattr(result, "isError", False)
-
-            if isinstance(result, list):
-                text = " ".join(
-                    getattr(item, "text", str(item)) for item in result
-                )
-            elif hasattr(result, "content"):
-                # CallToolResult — extract text from content list
-                text = " ".join(
-                    getattr(item, "text", str(item)) for item in result.content
-                )
-            else:
-                text = str(result)
-
-            lower = text.lower()
-            deny_keywords = ("denied", "insufficient", "trust",
-                             "badge_missing", "badge_invalid", "badge_expired",
-                             "badge_revoked", "not_allowed", "issuer_untrusted",
-                             "policy_denied")
-            if any(kw in lower for kw in deny_keywords):
-                return ("DENY", text)
-            if is_error:
-                return ("ERROR", text)
-            return ("ALLOW", text)
-
+            # Give the Go core sidecar time to initialize the PDP and
+            # fetch the policy bundle before we fire guarded tool calls.
+            await asyncio.sleep(1)
+            for tool_name, args in calls:
+                try:
+                    result = await client.call_tool(tool_name, args)
+                    results.append(_parse_result(result))
+                except Exception as exc:
+                    msg = str(exc)
+                    if any(kw in msg.lower() for kw in DENY_KEYWORDS):
+                        results.append(("DENY", msg))
+                    else:
+                        results.append(("ERROR", msg))
     except Exception as exc:
+        # Connection-level failure — fill remaining slots
         msg = str(exc)
-        lower = msg.lower()
-        deny_keywords = ("denied", "guard", "trust",
-                         "badge_missing", "badge_invalid", "badge_expired",
-                         "badge_revoked", "not_allowed", "issuer_untrusted",
-                         "policy_denied")
-        if any(kw in lower for kw in deny_keywords):
-            return ("DENY", msg)
-        return ("ERROR", msg)
+        outcome = "DENY" if any(kw in msg.lower() for kw in DENY_KEYWORDS) else "ERROR"
+        while len(results) < len(calls):
+            results.append((outcome, msg))
+    return results
 
 
 async def run_four_scenarios(
@@ -200,38 +227,38 @@ async def run_four_scenarios(
     """
     Run the standard four scenarios, print results, and return pass/fail.
 
+    Batches calls by badge so we only start 2 server sessions per phase
+    instead of 4 — eliminating redundant registry round-trips.
+
     expected: list of 4 expected outcomes, e.g. ["ALLOW", "ALLOW", "ALLOW", "DENY"]
     Returns True if all outcomes match expected.
     """
+    # ── Batch 1: trusted agent (S1 + S2) ─────────────────────────────
+    trusted_calls = [
+        ("get_price", {"sku": "WIDGET-A"}),
+        ("place_order", {"sku": "WIDGET-B", "quantity": 2}),
+    ]
+    trusted_results = await _call_tools_batched(trusted_badge, trusted_calls)
+
+    # ── Batch 2: untrusted agent (S3 + S4) ───────────────────────────
+    untrusted_calls = [
+        ("get_price", {"sku": "WIDGET-C"}),
+        ("place_order", {"sku": "WIDGET-A", "quantity": 1}),
+    ]
+    untrusted_results = await _call_tools_batched(untrusted_badge, untrusted_calls)
+
+    # ── Print results in scenario order ──────────────────────────────
+    scenarios = [
+        (1, "trusted (DV)", "get_price", trusted_results[0]),
+        (2, "trusted (DV)", "place_order", trusted_results[1]),
+        (3, "untrusted", "get_price", untrusted_results[0]),
+        (4, "untrusted", "place_order", untrusted_results[1]),
+    ]
     results = []
-
-    # S1: Trusted → get_price
-    scenario_header(1, "trusted (DV)", "get_price", "?")
-    outcome, detail = await call_tool(trusted_badge, "get_price", {"sku": "WIDGET-A"})
-    result_line(outcome, detail)
-    results.append((outcome, detail))
-
-    # S2: Trusted → place_order
-    scenario_header(2, "trusted (DV)", "place_order", "?")
-    outcome, detail = await call_tool(
-        trusted_badge, "place_order", {"sku": "WIDGET-B", "quantity": 2}
-    )
-    result_line(outcome, detail)
-    results.append((outcome, detail))
-
-    # S3: Untrusted → get_price
-    scenario_header(3, "untrusted", "get_price", "?")
-    outcome, detail = await call_tool(untrusted_badge, "get_price", {"sku": "WIDGET-C"})
-    result_line(outcome, detail)
-    results.append((outcome, detail))
-
-    # S4: Untrusted → place_order
-    scenario_header(4, "untrusted", "place_order", "?")
-    outcome, detail = await call_tool(
-        untrusted_badge, "place_order", {"sku": "WIDGET-A", "quantity": 1}
-    )
-    result_line(outcome, detail)
-    results.append((outcome, detail))
+    for num, agent, tool, (outcome, detail) in scenarios:
+        scenario_header(num, agent, tool, "?")
+        result_line(outcome, detail)
+        results.append((outcome, detail))
 
     # ── Phase verdict ────────────────────────────────────────────────
     actuals = [r[0] for r in results]
@@ -301,11 +328,11 @@ async def run_demo() -> None:
     print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
     print(f"    2. Create/activate the {BOLD}baseline{RESET} policy with this YAML:")
     show_policy_yaml("baseline")
-    print(f"    3. Wait a few seconds for the PDP bundle to refresh")
+    print("    3. Wait a few seconds for the PDP bundle to refresh")
     print(f"{YELLOW}{'─' * 60}{RESET}")
     input(f"\n  Press {BOLD}Enter{RESET} when the baseline policy is active... ")
 
-    await run_four_scenarios(trusted_badge, untrusted_badge,
+    await run_four_scenarios(trusted.get_badge(), untrusted.get_badge(),
                             expected=["ALLOW", "ALLOW", "ALLOW", "DENY"])
 
     # ── Phase 2: Lockdown ────────────────────────────────────────────
@@ -328,11 +355,11 @@ async def run_demo() -> None:
     print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
     print(f"    2. Activate the {BOLD}lockdown{RESET} policy with this YAML:")
     show_policy_yaml("lockdown")
-    print(f"    3. Wait a few seconds for the PDP bundle to refresh")
+    print("    3. Wait a few seconds for the PDP bundle to refresh")
     print(f"{YELLOW}{'─' * 60}{RESET}")
     input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
 
-    await run_four_scenarios(trusted_badge, untrusted_badge,
+    await run_four_scenarios(trusted.get_badge(), untrusted.get_badge(),
                             expected=["DENY", "DENY", "DENY", "DENY"])
 
     # ── Phase 3: Selective ───────────────────────────────────────────
@@ -355,11 +382,11 @@ async def run_demo() -> None:
     print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
     print(f"    2. Activate the {BOLD}selective{RESET} policy with this YAML:")
     show_policy_yaml("selective")
-    print(f"    3. Wait a few seconds for the PDP bundle to refresh")
+    print("    3. Wait a few seconds for the PDP bundle to refresh")
     print(f"{YELLOW}{'─' * 60}{RESET}")
     input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
 
-    await run_four_scenarios(trusted_badge, untrusted_badge,
+    await run_four_scenarios(trusted.get_badge(), untrusted.get_badge(),
                             expected=["ALLOW", "ALLOW", "DENY", "DENY"])
 
     # ── Summary ──────────────────────────────────────────────────────
@@ -380,6 +407,7 @@ async def run_demo() -> None:
     print()
 
     # Clean up
+    logging.getLogger("capiscio_sdk.badge_keeper").setLevel(logging.CRITICAL)
     trusted.close()
     untrusted.close()
 

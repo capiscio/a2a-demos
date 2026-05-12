@@ -27,11 +27,15 @@ import os
 import sys
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
     stream=sys.stderr,
 )
+# Only our own logger gets INFO — library loggers stay at WARNING
 logger = logging.getLogger("enforcement-demo.server")
+logger.setLevel(logging.INFO)
+# Suppress PDP-unavailable warnings (dev registry has no PDP)
+logging.getLogger("capiscio_mcp.guard").setLevel(logging.ERROR)
 
 from dotenv import load_dotenv  # noqa: E402
 
@@ -55,8 +59,8 @@ async def build_server() -> CapiscioMCPServer:
     """Connect to CapiscIO and register guarded MCP tools."""
 
     identity = await MCPServerIdentity.from_env()
-    logger.info("Server DID  : %s", identity.did)
-    logger.info("Badge ready : %s", "yes" if identity.badge else "no")
+    logger.debug("Server DID  : %s", identity.did)
+    logger.debug("Badge ready : %s", "yes" if identity.badge else "no")
 
     server = CapiscioMCPServer(identity=identity)
 
@@ -101,7 +105,7 @@ async def build_server() -> CapiscioMCPServer:
 
 async def main_async() -> None:
     server = await build_server()
-    logger.info("Starting MCP server (stdio)…")
+    logger.debug("Starting MCP server (stdio)…")
 
     # Run in the *same* event loop so the capiscio-core supervisor task
     # (started during build_server) stays alive for the entire session.

@@ -84,16 +84,16 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-          cache-dependency-path: 'agents/${{ matrix.agent }}/requirements.txt'
+          cache-dependency-path: 'multi-agent-demo/agents/${{ matrix.agent }}/requirements.txt'
       
       - name: Install shared module first
         run: |
-          cd shared
+          cd multi-agent-demo/shared
           pip install -e .
       
       - name: Install ${{ matrix.agent }} dependencies
         run: |
-          cd agents/${{ matrix.agent }}
+          cd multi-agent-demo/agents/${{ matrix.agent }}
           python -m pip install --upgrade pip
           pip install uv
           # Override protobuf constraint: crewai's opentelemetry wants <6.0
@@ -103,7 +103,7 @@ jobs:
       
       - name: Verify imports
         run: |
-          cd agents/${{ matrix.agent }}
+          cd multi-agent-demo/agents/${{ matrix.agent }}
           # Test that main.py can be imported (without running server)
           python -c "import sys; import main; print('✓ ${{ matrix.agent }} imports successfully')"
 

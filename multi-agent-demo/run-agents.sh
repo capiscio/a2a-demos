@@ -4,7 +4,7 @@
 #
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Check for tmux
@@ -44,7 +44,7 @@ else
     echo "  python main.py --serve"
     echo ""
     echo "Then run the demo driver:"
-    echo "  python scripts/demo_driver.py"
+    echo "  python run_demo.py"
     echo ""
     echo "Tip: Install tmux for automatic parallel execution"
 fi

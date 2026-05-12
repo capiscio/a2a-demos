@@ -26,7 +26,6 @@ Prerequisites:
     - Run ./setup.sh first to install deps and pre-download binary
 """
 
-import argparse
 import asyncio
 import base64
 import json
@@ -176,12 +175,21 @@ async def call_tool(badge: str | None, tool_name: str, args: dict) -> tuple[str,
         ) as client:
             result = await client.call_tool(tool_name, args)
 
-            # Result may be a list of TextContent or a string
-            if isinstance(result, list):
+            # Extract text from CallToolResult / list / string
+            if hasattr(result, "content"):
+                # CallToolResult — pull text from content items
+                is_error = getattr(result, "isError", False)
+                text = " ".join(
+                    getattr(item, "text", str(item))
+                    for item in (result.content or [])
+                )
+            elif isinstance(result, list):
+                is_error = False
                 text = " ".join(
                     getattr(item, "text", str(item)) for item in result
                 )
             else:
+                is_error = False
                 text = str(result)
 
             # Check if the result indicates a guard denial
@@ -189,8 +197,12 @@ async def call_tool(badge: str | None, tool_name: str, args: dict) -> tuple[str,
             deny_keywords = ("denied", "insufficient", "badge_missing",
                              "badge_invalid", "badge_expired", "badge_revoked",
                              "not_allowed", "issuer_untrusted", "policy_denied")
-            if any(kw in lower for kw in deny_keywords):
-                return ("DENY", text)
+            if is_error or any(kw in lower for kw in deny_keywords):
+                # Clean up the deny detail for display
+                detail = text
+                if "Error executing tool" in detail:
+                    detail = detail.split(": ", 1)[-1]
+                return ("DENY", detail)
             return ("ALLOW", text)
 
     except Exception as exc:
@@ -242,7 +254,7 @@ async def run_demo() -> None:
 
     # Scenario 1: Trusted agent → open tool → ALLOW
     scenario_header(1, "trusted (badged)", "get_price", 0, "ALLOW")
-    outcome, detail = await call_tool(trusted_badge, "get_price", {"sku": "WIDGET-A"})
+    outcome, detail = await call_tool(trusted.get_badge(), "get_price", {"sku": "WIDGET-A"})
     result_line(outcome, detail)
     results.append((1, "trusted (badged)", "get_price", "ALLOW", outcome))
     pause("next: trusted agent calls a restricted tool")
@@ -250,7 +262,7 @@ async def run_demo() -> None:
     # Scenario 2: Trusted agent → restricted tool → ALLOW
     scenario_header(2, "trusted (badged)", "place_order", 1, "ALLOW")
     outcome, detail = await call_tool(
-        trusted_badge, "place_order", {"sku": "WIDGET-B", "quantity": 3}
+        trusted.get_badge(), "place_order", {"sku": "WIDGET-B", "quantity": 3}
     )
     result_line(outcome, detail)
     results.append((2, "trusted (badged)", "place_order", "ALLOW", outcome))
@@ -258,7 +270,7 @@ async def run_demo() -> None:
 
     # Scenario 3: Untrusted agent → open tool → ALLOW
     scenario_header(3, "untrusted (no badge)", "get_price", 0, "ALLOW")
-    outcome, detail = await call_tool(untrusted_badge, "get_price", {"sku": "WIDGET-C"})
+    outcome, detail = await call_tool(untrusted.get_badge(), "get_price", {"sku": "WIDGET-C"})
     result_line(outcome, detail)
     results.append((3, "untrusted (no badge)", "get_price", "ALLOW", outcome))
     pause("next: untrusted agent calls a restricted tool")
@@ -266,7 +278,7 @@ async def run_demo() -> None:
     # Scenario 4: Untrusted agent → restricted tool → DENY
     scenario_header(4, "untrusted (no badge)", "place_order", 1, "DENY")
     outcome, detail = await call_tool(
-        untrusted_badge, "place_order", {"sku": "WIDGET-A", "quantity": 1}
+        untrusted.get_badge(), "place_order", {"sku": "WIDGET-A", "quantity": 1}
     )
     result_line(outcome, detail)
     results.append((4, "untrusted (no badge)", "place_order", "DENY", outcome))
@@ -275,15 +287,16 @@ async def run_demo() -> None:
     # Scenario 5: Revoke the trusted agent's badge, then retry → DENY
     scenario_header(5, "trusted (badge REVOKED)", "place_order", 1, "DENY")
 
-    if trusted_badge:
+    revoke_badge = trusted.get_badge()
+    if revoke_badge:
         print("  Revoking trusted agent's badge...")
-        await revoke_badge_via_api(trusted_badge)
+        await revoke_badge_via_api(revoke_badge)
         await asyncio.sleep(2)  # Propagation delay
     else:
         print(f"  {YELLOW}Skipping — no badge to revoke{RESET}")
 
     outcome, detail = await call_tool(
-        trusted_badge, "place_order", {"sku": "WIDGET-A", "quantity": 1}
+        trusted.get_badge(), "place_order", {"sku": "WIDGET-A", "quantity": 1}
     )
     result_line(outcome, detail)
     results.append((5, "trusted (REVOKED)", "place_order", "DENY", outcome))

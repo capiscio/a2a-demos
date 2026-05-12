@@ -39,9 +39,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger("policy-demo.server")
 
+# Suppress guard/PDP warnings — noisy during demo and benign under EM-OBSERVE
+logging.getLogger("capiscio_mcp.guard").setLevel(logging.ERROR)
+logging.getLogger("capiscio_mcp.pip").setLevel(logging.ERROR)
+
 from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+
+# ── Auto-derive CAPISCIO_BUNDLE_URL if not set ───────────────────────────
+# The Go core needs this to fetch the OPA policy bundle for local evaluation.
+# We derive it from the registry + org_id so devs don't have to set it.
+if not os.environ.get("CAPISCIO_BUNDLE_URL"):
+    _server_url = os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io").rstrip("/")
+    _api_key = os.environ.get("CAPISCIO_API_KEY", "")
+    if _api_key:
+        try:
+            import httpx
+            _resp = httpx.get(
+                f"{_server_url}/v1/sdk/policy-context",
+                headers={"X-Capiscio-Registry-Key": _api_key},
+                timeout=10.0,
+            )
+            if _resp.status_code == 200:
+                _org_id = _resp.json().get("org_id")
+                if _org_id:
+                    os.environ["CAPISCIO_BUNDLE_URL"] = f"{_server_url}/v1/bundles/{_org_id}"
+                    logger.debug("Auto-derived CAPISCIO_BUNDLE_URL for org %s", _org_id)
+        except Exception as exc:
+            logger.debug("Could not auto-derive bundle URL: %s", exc)
 
 from capiscio_mcp import MCPServerIdentity  # noqa: E402
 from capiscio_mcp.integrations.mcp import CapiscioMCPServer  # noqa: E402
@@ -61,8 +87,8 @@ async def build_server() -> CapiscioMCPServer:
     """Connect to CapiscIO and register guarded MCP tools."""
 
     identity = await MCPServerIdentity.from_env()
-    logger.info("Server DID  : %s", identity.did)
-    logger.info("Badge ready : %s", "yes" if identity.badge else "no")
+    logger.debug("Server DID  : %s", identity.did)
+    logger.debug("Badge ready : %s", "yes" if identity.badge else "no")
 
     server = CapiscioMCPServer(identity=identity)
 
@@ -105,10 +131,29 @@ async def build_server() -> CapiscioMCPServer:
     return server
 
 
+async def main_async() -> None:
+    server = await build_server()
+    logger.debug("Starting MCP server (stdio)…")
+
+    # Run in the *same* event loop so the capiscio-core supervisor task
+    # (started during build_server) stays alive for the entire session.
+    meta = server.create_initialize_response_meta()
+    from capiscio_mcp.integrations.mcp import _capiscio_meta_ctx
+
+    token = _capiscio_meta_ctx.set(meta)
+    try:
+        await server._server.run_stdio_async()
+    finally:
+        _capiscio_meta_ctx.reset(token)
+        # Flush pending telemetry events before the process exits
+        from capiscio_mcp.events import get_event_emitter
+        emitter = get_event_emitter()
+        if emitter is not None:
+            emitter.flush(timeout=5.0)
+
+
 def main() -> None:
-    server = asyncio.run(build_server())
-    logger.info("Starting MCP server (stdio)…")
-    server.run(transport="stdio")
+    asyncio.run(main_async())
 
 
 if __name__ == "__main__":

@@ -10,18 +10,18 @@ policy the admin has activated.
 Three phases (presenter switches policies in the dashboard between them):
 
   Phase 1 — Baseline
-    Default enforcement.  Trust levels as coded in @guard decorators.
-    Trusted (DV) can call get_price and place_order.
-    Untrusted can only call get_price.
+    Sensitive tools require a CA-issued badge.  Badged agents can
+    call get_price and place_order.  Unbadged agents can only
+    call get_price.
 
   Phase 2 — Lockdown
-    Global min_trust_level raised to EV.
-    ALL agents (including trusted DV) are denied everything.
+    Global allowlist set to a non-existent DID — ALL agents
+    (including badged) are denied everything.  Emergency kill switch.
 
   Phase 3 — Selective
-    get_price overridden to require DV — a "public" tool becomes
-    restricted without any code change.  Trusted still works;
-    untrusted is now denied even get_price.
+    get_price overridden to require a badge — a "public" tool
+    becomes restricted without any code change.  Badged agents
+    still work; unbadged agents are now denied even get_price.
 
 Usage:
     source .venv/bin/activate
@@ -34,13 +34,34 @@ Prerequisites:
 """
 
 import asyncio
+import atexit
 import logging
 import os
+import subprocess
 import sys
+import time
 
 # Suppress gRPC C-core noise (must be before any gRPC import)
 os.environ.setdefault("GRPC_VERBOSITY", "NONE")
 os.environ.setdefault("GRPC_TRACE", "")
+
+
+def _cleanup_core_processes() -> None:
+    """Kill any lingering capiscio-core (rpc) subprocesses."""
+    try:
+        result = subprocess.run(
+            ["pkill", "-f", "capiscio rpc"],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            print("  [cleanup] Terminated stale capiscio-core processes.")
+    except FileNotFoundError:
+        pass  # pkill not available on this platform
+
+
+# Kill stale cores from previous runs, and register cleanup for exit.
+_cleanup_core_processes()
+atexit.register(_cleanup_core_processes)
 
 # ── Logging ──────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -96,10 +117,11 @@ def scenario_header(num: int, agent_type: str, tool: str, expected: str) -> None
     print(f"\n  {BOLD}Scenario {num}{RESET}: {agent_type} → {tool} → {color}{expected}{RESET}")
 
 
-def result_line(outcome: str, detail: str) -> None:
+def result_line(outcome: str, detail: str, ms: int = 0) -> None:
     color = GREEN if outcome == "ALLOW" else RED
     symbol = "✓" if outcome == "ALLOW" else "✗"
-    print(f"    {color}{symbol} {outcome}{RESET} — {detail}")
+    timing = f"  {DIM}({ms}ms){RESET}" if ms else ""
+    print(f"    {color}{symbol} {outcome}{RESET} — {detail}{timing}")
 
 
 def pause(hint: str = "") -> None:
@@ -142,9 +164,6 @@ def show_policy_yaml(policy_name: str) -> None:
     print()
 
 
-# ── Auto policy switching ────────────────────────────────────────────────
-
-
 # ── Tool caller ──────────────────────────────────────────────────────────
 
 SERVER_CMD = sys.executable
@@ -179,85 +198,57 @@ def _parse_result(result: object) -> tuple[str, str]:
     return ("ALLOW", text)
 
 
-async def _call_tools_batched(
-    badge: str | None,
-    calls: list[tuple[str, dict]],
-) -> list[tuple[str, str]]:
-    """Open ONE server session and execute multiple tool calls against it.
+async def _safe_call(
+    client: CapiscioMCPClient,
+    tool_name: str,
+    args: dict,
+) -> tuple[str, str, int]:
+    """Call a tool, catching exceptions as DENY/ERROR outcomes.
 
-    This avoids re-spawning the MCP server (and its registry handshake +
-    policy-bundle fetch) for every single call — the PDP stays warm.
+    Returns (outcome, detail, elapsed_ms).
     """
-    results: list[tuple[str, str]] = []
+    t0 = time.monotonic()
     try:
-        async with CapiscioMCPClient(
-            command=SERVER_CMD,
-            args=SERVER_ARGS,
-            badge=badge,
-            min_trust_level=0,
-            fail_on_unverified=False,
-        ) as client:
-            # Give the Go core sidecar time to initialize the PDP and
-            # fetch the policy bundle before we fire guarded tool calls.
-            await asyncio.sleep(1)
-            for tool_name, args in calls:
-                try:
-                    result = await client.call_tool(tool_name, args)
-                    results.append(_parse_result(result))
-                except Exception as exc:
-                    msg = str(exc)
-                    if any(kw in msg.lower() for kw in DENY_KEYWORDS):
-                        results.append(("DENY", msg))
-                    else:
-                        results.append(("ERROR", msg))
+        result = await client.call_tool(tool_name, args)
+        ms = int((time.monotonic() - t0) * 1000)
+        outcome, detail = _parse_result(result)
+        return (outcome, detail, ms)
     except Exception as exc:
-        # Connection-level failure — fill remaining slots
+        ms = int((time.monotonic() - t0) * 1000)
         msg = str(exc)
-        outcome = "DENY" if any(kw in msg.lower() for kw in DENY_KEYWORDS) else "ERROR"
-        while len(results) < len(calls):
-            results.append((outcome, msg))
-    return results
+        if any(kw in msg.lower() for kw in DENY_KEYWORDS):
+            return ("DENY", msg, ms)
+        return ("ERROR", msg, ms)
 
 
 async def run_four_scenarios(
+    client: CapiscioMCPClient,
     trusted_badge: str | None,
     untrusted_badge: str | None,
     expected: list[str],
 ) -> bool:
     """
-    Run the standard four scenarios, print results, and return pass/fail.
+    Run the standard four scenarios using a single live server session.
 
-    Batches calls by badge so we only start 2 server sessions per phase
-    instead of 4 — eliminating redundant registry round-trips.
+    Swaps the client badge between calls — the server subprocess (and its
+    Go core sidecar + PDP cache) stays warm across all calls.
 
     expected: list of 4 expected outcomes, e.g. ["ALLOW", "ALLOW", "ALLOW", "DENY"]
     Returns True if all outcomes match expected.
     """
-    # ── Batch 1: trusted agent (S1 + S2) ─────────────────────────────
-    trusted_calls = [
-        ("get_price", {"sku": "WIDGET-A"}),
-        ("place_order", {"sku": "WIDGET-B", "quantity": 2}),
-    ]
-    trusted_results = await _call_tools_batched(trusted_badge, trusted_calls)
-
-    # ── Batch 2: untrusted agent (S3 + S4) ───────────────────────────
-    untrusted_calls = [
-        ("get_price", {"sku": "WIDGET-C"}),
-        ("place_order", {"sku": "WIDGET-A", "quantity": 1}),
-    ]
-    untrusted_results = await _call_tools_batched(untrusted_badge, untrusted_calls)
-
-    # ── Print results in scenario order ──────────────────────────────
     scenarios = [
-        (1, "trusted (DV)", "get_price", trusted_results[0]),
-        (2, "trusted (DV)", "place_order", trusted_results[1]),
-        (3, "untrusted", "get_price", untrusted_results[0]),
-        (4, "untrusted", "place_order", untrusted_results[1]),
+        (1, "badged", "get_price", {"sku": "WIDGET-A"}, trusted_badge),
+        (2, "badged", "place_order", {"sku": "WIDGET-B", "quantity": 2}, trusted_badge),
+        (3, "unbadged", "get_price", {"sku": "WIDGET-C"}, untrusted_badge),
+        (4, "unbadged", "place_order", {"sku": "WIDGET-A", "quantity": 1}, untrusted_badge),
     ]
-    results = []
-    for num, agent, tool, (outcome, detail) in scenarios:
+
+    results: list[tuple[str, str]] = []
+    for num, agent, tool, args, badge in scenarios:
+        client.set_badge(badge)
         scenario_header(num, agent, tool, "?")
-        result_line(outcome, detail)
+        outcome, detail, ms = await _safe_call(client, tool, args)
+        result_line(outcome, detail, ms)
         results.append((outcome, detail))
 
     # ── Phase verdict ────────────────────────────────────────────────
@@ -268,10 +259,10 @@ async def run_four_scenarios(
     else:
         print(f"\n  {RED}{BOLD}✗ PHASE FAILED{RESET} — mismatches:")
         labels = [
-            "trusted → get_price",
-            "trusted → place_order",
-            "untrusted → get_price",
-            "untrusted → place_order",
+            "badged → get_price",
+            "badged → place_order",
+            "unbadged → get_price",
+            "unbadged → place_order",
         ]
         for label, exp, act in zip(labels, expected, actuals):
             if exp != act:
@@ -289,7 +280,7 @@ async def run_demo() -> None:
     print(f"{BOLD}Connecting agents to CapiscIO registry...{RESET}")
     print(f"  Server URL: {os.environ.get('CAPISCIO_SERVER_URL', 'https://registry.capisc.io')}")
 
-    print("\n  Connecting trusted agent (with DV badge)...")
+    print("\n  Connecting badged agent (CA-issued badge)...")
     trusted = trusted_agent.connect()
     trusted_badge = trusted.get_badge()
     if not trusted_badge:
@@ -302,92 +293,109 @@ async def run_demo() -> None:
     print(f"    DID  : {trusted.did}")
     print(f"    Badge: {'✓ obtained' if trusted_badge else '✗ none'}")
 
-    print("\n  Connecting untrusted agent (no badge)...")
+    print("\n  Connecting unbadged agent (no badge)...")
     untrusted = untrusted_agent.connect()
     untrusted_badge = untrusted.get_badge()
     print(f"    DID  : {untrusted.did}")
     print(f"    Badge: {'✗ none (as expected)' if not untrusted_badge else '? unexpected'}")
 
-    # ── Phase 1: Baseline ────────────────────────────────────────────
-    phase_header(
-        1,
-        "Baseline",
-        "baseline.yaml",
-        "Trust levels as coded — @guard levels apply",
-    )
-    policy_table([
-        ("trusted (DV)", "get_price", "ALLOW", "0 ≤ DV"),
-        ("trusted (DV)", "place_order", "ALLOW", "DV ≥ DV"),
-        ("untrusted", "get_price", "ALLOW", "open tool"),
-        ("untrusted", "place_order", "DENY", "no badge < DV"),
-    ])
+    # ── Start MCP server (one subprocess for ALL phases) ─────────────
+    # The same server stays alive while the admin switches policies
+    # in the dashboard.  The embedded PDP picks up the new policy
+    # bundle automatically — no restart needed.
+    async with CapiscioMCPClient(
+        command=SERVER_CMD,
+        args=SERVER_ARGS,
+        badge=trusted_badge,
+        min_trust_level=0,
+        fail_on_unverified=False,
+    ) as client:
+        # Warm up the Go core sidecar (first call pays startup cost)
+        try:
+            await client.call_tool("get_price", {"sku": "WARMUP"})
+        except Exception:
+            pass
 
-    print(f"\n{YELLOW}{'─' * 60}{RESET}")
-    print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
-    print(f"  Apply the {BOLD}baseline{RESET} policy in the dashboard:")
-    print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
-    print(f"    2. Create/activate the {BOLD}baseline{RESET} policy with this YAML:")
-    show_policy_yaml("baseline")
-    print("    3. Wait a few seconds for the PDP bundle to refresh")
-    print(f"{YELLOW}{'─' * 60}{RESET}")
-    input(f"\n  Press {BOLD}Enter{RESET} when the baseline policy is active... ")
+        # ── Phase 1: Baseline ────────────────────────────────────────
+        phase_header(
+            1,
+            "Baseline",
+            "baseline.yaml",
+            "Sensitive tools require a CA-issued badge",
+        )
+        policy_table([
+            ("badged", "get_price", "ALLOW", "open tool"),
+            ("badged", "place_order", "ALLOW", "has badge"),
+            ("unbadged", "get_price", "ALLOW", "open tool"),
+            ("unbadged", "place_order", "DENY", "no badge"),
+        ])
 
-    await run_four_scenarios(trusted.get_badge(), untrusted.get_badge(),
-                            expected=["ALLOW", "ALLOW", "ALLOW", "DENY"])
+        print(f"\n{YELLOW}{'─' * 60}{RESET}")
+        print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
+        print(f"  Apply the {BOLD}baseline{RESET} policy in the dashboard:")
+        print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
+        print(f"    2. Create/activate the {BOLD}baseline{RESET} policy with this YAML:")
+        show_policy_yaml("baseline")
+        print("    3. Wait a few seconds for the PDP bundle to refresh")
+        print(f"{YELLOW}{'─' * 60}{RESET}")
+        input(f"\n  Press {BOLD}Enter{RESET} when the baseline policy is active... ")
 
-    # ── Phase 2: Lockdown ────────────────────────────────────────────
-    phase_header(
-        2,
-        "Lockdown",
-        "lockdown.yaml",
-        "Global min_trust_level=EV — everything denied",
-    )
-    policy_table([
-        ("trusted (DV)", "get_price", "DENY", "DV < EV"),
-        ("trusted (DV)", "place_order", "DENY", "DV < EV"),
-        ("untrusted", "get_price", "DENY", "no badge < EV"),
-        ("untrusted", "place_order", "DENY", "no badge < EV"),
-    ])
+        await run_four_scenarios(client, trusted.get_badge(), untrusted.get_badge(),
+                                expected=["ALLOW", "ALLOW", "ALLOW", "DENY"])
 
-    print(f"\n{YELLOW}{'─' * 60}{RESET}")
-    print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
-    print(f"  Switch to the {BOLD}lockdown{RESET} policy in the dashboard:")
-    print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
-    print(f"    2. Activate the {BOLD}lockdown{RESET} policy with this YAML:")
-    show_policy_yaml("lockdown")
-    print("    3. Wait a few seconds for the PDP bundle to refresh")
-    print(f"{YELLOW}{'─' * 60}{RESET}")
-    input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
+        # ── Phase 2: Lockdown ────────────────────────────────────────
+        phase_header(
+            2,
+            "Lockdown",
+            "lockdown.yaml",
+            "DID allowlist — only explicitly listed agents can access anything",
+        )
+        policy_table([
+            ("badged", "get_price", "DENY", "not in allowlist"),
+            ("badged", "place_order", "DENY", "not in allowlist"),
+            ("unbadged", "get_price", "DENY", "not in allowlist"),
+            ("unbadged", "place_order", "DENY", "not in allowlist"),
+        ])
 
-    await run_four_scenarios(trusted.get_badge(), untrusted.get_badge(),
-                            expected=["DENY", "DENY", "DENY", "DENY"])
+        print(f"\n{YELLOW}{'─' * 60}{RESET}")
+        print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
+        print(f"  Switch to the {BOLD}lockdown{RESET} policy in the dashboard:")
+        print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
+        print(f"    2. Activate the {BOLD}lockdown{RESET} policy with this YAML:")
+        show_policy_yaml("lockdown")
+        print("    3. Wait a few seconds for the PDP bundle to refresh")
+        print(f"{YELLOW}{'─' * 60}{RESET}")
+        input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
 
-    # ── Phase 3: Selective ───────────────────────────────────────────
-    phase_header(
-        3,
-        "Selective",
-        "selective.yaml",
-        "get_price overridden to require DV — no code change needed",
-    )
-    policy_table([
-        ("trusted (DV)", "get_price", "ALLOW", "DV ≥ DV"),
-        ("trusted (DV)", "place_order", "ALLOW", "DV ≥ DV"),
-        ("untrusted", "get_price", "DENY", "no badge < DV"),
-        ("untrusted", "place_order", "DENY", "no badge < DV"),
-    ])
+        await run_four_scenarios(client, trusted.get_badge(), untrusted.get_badge(),
+                                expected=["DENY", "DENY", "DENY", "DENY"])
 
-    print(f"\n{YELLOW}{'─' * 60}{RESET}")
-    print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
-    print(f"  Switch to the {BOLD}selective{RESET} policy in the dashboard:")
-    print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
-    print(f"    2. Activate the {BOLD}selective{RESET} policy with this YAML:")
-    show_policy_yaml("selective")
-    print("    3. Wait a few seconds for the PDP bundle to refresh")
-    print(f"{YELLOW}{'─' * 60}{RESET}")
-    input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
+        # ── Phase 3: Selective ───────────────────────────────────────
+        phase_header(
+            3,
+            "Selective",
+            "selective.yaml",
+            "get_price now requires a badge — no code change needed",
+        )
+        policy_table([
+            ("badged", "get_price", "ALLOW", "has badge"),
+            ("badged", "place_order", "ALLOW", "has badge"),
+            ("unbadged", "get_price", "DENY", "no badge"),
+            ("unbadged", "place_order", "DENY", "no badge"),
+        ])
 
-    await run_four_scenarios(trusted.get_badge(), untrusted.get_badge(),
-                            expected=["ALLOW", "ALLOW", "DENY", "DENY"])
+        print(f"\n{YELLOW}{'─' * 60}{RESET}")
+        print(f"{YELLOW}  ACTION REQUIRED:{RESET}")
+        print(f"  Switch to the {BOLD}selective{RESET} policy in the dashboard:")
+        print(f"    1. Open {CYAN}https://app.capisc.io{RESET} → Policies")
+        print(f"    2. Activate the {BOLD}selective{RESET} policy with this YAML:")
+        show_policy_yaml("selective")
+        print("    3. Wait a few seconds for the PDP bundle to refresh")
+        print(f"{YELLOW}{'─' * 60}{RESET}")
+        input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
+
+        await run_four_scenarios(client, trusted.get_badge(), untrusted.get_badge(),
+                                expected=["ALLOW", "ALLOW", "DENY", "DENY"])
 
     # ── Summary ──────────────────────────────────────────────────────
     banner("Summary")
@@ -413,11 +421,16 @@ async def run_demo() -> None:
 
 
 def main() -> None:
+    # Suppress noisy shutdown tracebacks on Ctrl+C — the async generators
+    # and gRPC streams complain about unclean teardown, which is expected.
+    logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+    logging.getLogger("capiscio_sdk.badge_keeper").setLevel(logging.CRITICAL)
     try:
         asyncio.run(run_demo())
     except KeyboardInterrupt:
         print("\n\nDemo interrupted.")
-        sys.exit(0)
+    finally:
+        _cleanup_core_processes()
 
 
 if __name__ == "__main__":

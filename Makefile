@@ -115,7 +115,7 @@ test: ## Syntax-check all Python files
 	@echo "✓ All Python files are syntactically valid"
 
 clean: ## Remove venvs and caches
-	rm -rf enforcement-demo/.venv mcp-demo/.venv
+	rm -rf enforcement-demo/.venv
 	rm -rf multi-agent-demo/agents/langchain-agent/.venv multi-agent-demo/agents/crewai-agent/.venv multi-agent-demo/agents/langgraph-agent/.venv
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true

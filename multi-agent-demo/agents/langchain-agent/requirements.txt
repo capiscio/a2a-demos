@@ -14,7 +14,7 @@ uvicorn>=0.32.0
 #   pip install -e ../../../langchain-capiscio
 # Once published:
 #   langchain-capiscio>=0.1.0
-capiscio-sdk>=2.6.0
+capiscio-sdk>=2.7.0
 
 # Shared event emitter (install from local path)
 # Run: pip install -e ../../shared

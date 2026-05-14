@@ -1,49 +1,19 @@
 """
-Enforcement Demo — Trusted Agent.
+Enforcement Demo — Badged Agent.
 
 Connects to CapiscIO, obtains a badge, then calls the guarded MCP server.
-With a valid badge, this agent can access tools up to its trust level.
+With a valid CA-issued badge, this agent can access badge-required tools.
 
 This module is imported by run_demo.py — not run directly.
 """
 
-import logging
-import os
-
-import httpx
+from pathlib import Path
 
 from capiscio_sdk import CapiscIO, AgentIdentity
 
-logger = logging.getLogger("enforcement-demo.trusted-agent")
-
-
-def _resolve_agent_id(api_key: str, server_url: str, name: str) -> str | None:
-    """Look up agent UUID by name so the SDK uses the correct identity."""
-    try:
-        resp = httpx.get(
-            f"{server_url}/v1/sdk/agents",
-            headers={"X-Capiscio-Registry-Key": api_key},
-            timeout=10.0,
-        )
-        if resp.status_code == 200:
-            for agent in resp.json().get("data", []):
-                if agent.get("name") == name:
-                    return agent["id"]
-    except Exception:
-        pass
-    return None
+KEYS_DIR = Path(__file__).resolve().parent.parent / ".capiscio" / "keys"
 
 
 def connect() -> AgentIdentity:
     """Connect to CapiscIO and return an agent identity with a badge."""
-    api_key = os.environ["CAPISCIO_API_KEY"]
-    name = os.environ.get("CAPISCIO_TRUSTED_AGENT_NAME", "demo-trusted-agent")
-    server_url = os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io")
-    agent_id = _resolve_agent_id(api_key, server_url, name)
-    return CapiscIO.connect(
-        api_key=api_key,
-        agent_id=agent_id,
-        name=name,
-        server_url=server_url,
-        auto_badge=True,
-    )
+    return CapiscIO.connect(name="demo-trusted-agent", keys_dir=KEYS_DIR)

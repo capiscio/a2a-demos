@@ -29,7 +29,7 @@
 ```
 a2a-demos/
 ├── enforcement-demo/        # Enforcement demo (Zero to Enforcement)
-├── mcp-demo/                # MCP Guard demo (Docker)
+├── policy-demo/             # Policy as Code demo
 ├── multi-agent-demo/        # Multi-framework agent trust demo
 │   ├── agents/
 │   │   ├── langchain-agent/ # LangChain research agent
@@ -106,8 +106,8 @@ These demos exist to show developers how easy CapiscIO is. Keep the integration 
 ### 2. Each Agent Is Independent
 Agents share the `multi-agent-demo/shared/` module but each has its own venv and requirements. Don't create cross-agent dependencies.
 
-### 3. Docker Compose Uses Public Registry
-The `mcp-demo/docker-compose.yml` uses the public registry at `registry.capisc.io`. The capiscio-server is a private product — never add localhost server instructions to READMEs.
+### 3. All Demos Use Public Registry
+All demos connect to the public registry at `registry.capisc.io`. The capiscio-server is a private product — never add localhost server instructions to READMEs.
 
 ### 4. Credentials Are Gitignored
 The `.env` file contains real API keys. Never commit it. Use `.env.example` as template.

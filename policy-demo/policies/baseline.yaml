@@ -1,17 +1,18 @@
-# Baseline Policy — trust levels as coded
+# Baseline Policy — badge required for sensitive operations
 #
-# Mirrors the developer's @guard levels so the PDP enforces
-# the same rules the inline path would:
+# Enforces a simple rule: agents must present a valid badge
+# (issued by the CA) to access sensitive tools.  The badge is
+# cryptographically signed and cannot be forged.
 #
-#   get_price          → open (no requirement)
-#   place_order        → DV   (badge with PoP → DV-equivalent)
-#   cancel_all_orders  → EV   (only extended-validated agents)
+#   get_price          → open (no badge required)
+#   place_order        → badge required (any registered agent)
+#   cancel_all_orders  → badge required (any registered agent)
 #
 # Expected outcomes with this policy active:
-#   Trusted (DV)  → get_price       → ALLOW
-#   Trusted (DV)  → place_order     → ALLOW
-#   Untrusted     → get_price       → ALLOW
-#   Untrusted     → place_order     → DENY
+#   Badged agent    → get_price       → ALLOW
+#   Badged agent    → place_order     → ALLOW
+#   Unbadged agent  → get_price       → ALLOW
+#   Unbadged agent  → place_order     → DENY
 
 version: "1"
 min_trust_level: ""
@@ -19,10 +20,10 @@ allowed_dids: []
 denied_dids: []
 mcp_tools:
   - tool: "place_order"
-    min_trust_level: "DV"
+    min_trust_level: "REG"
     allowed_dids: []
     denied_dids: []
   - tool: "cancel_all_orders"
-    min_trust_level: "EV"
+    min_trust_level: "REG"
     allowed_dids: []
     denied_dids: []

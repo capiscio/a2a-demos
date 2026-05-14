@@ -1,18 +1,19 @@
 """
 Policy Demo — Guarded MCP Server.
 
-Same MCP server as demo-one with three tools at different trust levels:
+MCP server with three tools at different access levels, plus org-policy
+enforcement via an embedded PDP:
 
-  Tool              Min Trust Level   Who can call it
+  Tool              Requirement       Who can call it
   ──────────────────────────────────────────────────────
-  get_price          0 (open)         Any agent
-  place_order        1 (PoP/REG+)     Registered agents with badge
-  cancel_all_orders  2 (DV+)          Domain-validated agents
+  get_price          open              Any agent
+  place_order        badge required    Agents with CA-issued badge
+  cancel_all_orders  badge required    Agents with CA-issued badge
 
-What's different in the policy demo: the ORG POLICY can override these levels
-at runtime.  The @guard decorator queries the embedded PDP, which
-evaluates the active policy bundle.  When the admin changes the policy
-in the dashboard, enforcement changes — no code deploy needed.
+What's different in the policy demo: the ORG POLICY can override these
+requirements at runtime.  The @guard decorator queries the embedded PDP,
+which evaluates the active policy bundle.  When the admin changes the
+policy in the dashboard, enforcement changes — no code deploy needed.
 
 Run:
     python server/main.py
@@ -23,53 +24,20 @@ Requires:
     CAPISCIO_SERVER_URL  — Registry URL (default: https://registry.capisc.io)
 """
 
-import asyncio
 import logging
 import os
 import sys
-
-# Suppress gRPC C-core noise
-os.environ.setdefault("GRPC_VERBOSITY", "NONE")
-os.environ.setdefault("GRPC_TRACE", "")
 
 logging.basicConfig(
     level=logging.WARNING,
     format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
     stream=sys.stderr,
 )
-logger = logging.getLogger("policy-demo.server")
-
-# Suppress guard/PDP warnings — noisy during demo and benign under EM-OBSERVE
-logging.getLogger("capiscio_mcp.guard").setLevel(logging.ERROR)
-logging.getLogger("capiscio_mcp.pip").setLevel(logging.ERROR)
 
 from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-# ── Auto-derive CAPISCIO_BUNDLE_URL if not set ───────────────────────────
-# The Go core needs this to fetch the OPA policy bundle for local evaluation.
-# We derive it from the registry + org_id so devs don't have to set it.
-if not os.environ.get("CAPISCIO_BUNDLE_URL"):
-    _server_url = os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io").rstrip("/")
-    _api_key = os.environ.get("CAPISCIO_API_KEY", "")
-    if _api_key:
-        try:
-            import httpx
-            _resp = httpx.get(
-                f"{_server_url}/v1/sdk/policy-context",
-                headers={"X-Capiscio-Registry-Key": _api_key},
-                timeout=10.0,
-            )
-            if _resp.status_code == 200:
-                _org_id = _resp.json().get("org_id")
-                if _org_id:
-                    os.environ["CAPISCIO_BUNDLE_URL"] = f"{_server_url}/v1/bundles/{_org_id}"
-                    logger.debug("Auto-derived CAPISCIO_BUNDLE_URL for org %s", _org_id)
-        except Exception as exc:
-            logger.debug("Could not auto-derive bundle URL: %s", exc)
-
-from capiscio_mcp import MCPServerIdentity  # noqa: E402
 from capiscio_mcp.integrations.mcp import CapiscioMCPServer  # noqa: E402
 
 
@@ -83,78 +51,48 @@ CATALOG = {
 ORDERS: list[dict] = []
 
 
-async def build_server() -> CapiscioMCPServer:
-    """Connect to CapiscIO and register guarded MCP tools."""
-
-    identity = await MCPServerIdentity.from_env()
-    logger.debug("Server DID  : %s", identity.did)
-    logger.debug("Badge ready : %s", "yes" if identity.badge else "no")
-
-    server = CapiscioMCPServer(identity=identity)
-
-    # ── Trust Level 0: open to any caller ─────────────────────────────
-    @server.tool(min_trust_level=0)
-    async def get_price(sku: str) -> str:
-        """Look up the price of a product by SKU."""
-        item = CATALOG.get(sku.upper())
-        if not item:
-            return f"Unknown SKU: {sku}"
-        return f"{item['name']}: ${item['price']:.2f}"
-
-    # ── Trust Level 1: requires registered badge (PoP) ────────────────
-    @server.tool(min_trust_level=1)
-    async def place_order(sku: str, quantity: int) -> str:
-        """Place an order for a product. Requires PoP+ trust level."""
-        item = CATALOG.get(sku.upper())
-        if not item:
-            return f"Unknown SKU: {sku}"
-        if quantity < 1:
-            return "Quantity must be at least 1"
-        order = {
-            "id": len(ORDERS) + 1,
-            "sku": sku.upper(),
-            "name": item["name"],
-            "quantity": quantity,
-            "total": item["price"] * quantity,
-        }
-        ORDERS.append(order)
-        return f"Order #{order['id']} placed: {quantity}x {item['name']} = ${order['total']:.2f}"
-
-    # ── Trust Level 2: requires domain-validated (DV) badge ───────────
-    @server.tool(min_trust_level=2)
-    async def cancel_all_orders() -> str:
-        """Cancel all pending orders. Requires DV trust level."""
-        count = len(ORDERS)
-        ORDERS.clear()
-        return f"Cancelled {count} order(s)"
-
-    return server
+# ── CapiscIO setup (1 line) ──────────────────────────────────────────────
+server = CapiscioMCPServer.connect()
 
 
-async def main_async() -> None:
-    server = await build_server()
-    logger.debug("Starting MCP server (stdio)…")
-
-    # Run in the *same* event loop so the capiscio-core supervisor task
-    # (started during build_server) stays alive for the entire session.
-    meta = server.create_initialize_response_meta()
-    from capiscio_mcp.integrations.mcp import _capiscio_meta_ctx
-
-    token = _capiscio_meta_ctx.set(meta)
-    try:
-        await server._server.run_stdio_async()
-    finally:
-        _capiscio_meta_ctx.reset(token)
-        # Flush pending telemetry events before the process exits
-        from capiscio_mcp.events import get_event_emitter
-        emitter = get_event_emitter()
-        if emitter is not None:
-            emitter.flush(timeout=5.0)
+# ── Open: no badge required ───────────────────────────────────────────
+@server.tool(min_trust_level=0)
+async def get_price(sku: str) -> str:
+    """Look up the price of a product by SKU."""
+    item = CATALOG.get(sku.upper())
+    if not item:
+        return f"Unknown SKU: {sku}"
+    return f"{item['name']}: ${item['price']:.2f}"
 
 
-def main() -> None:
-    asyncio.run(main_async())
+# ── Badge required: agents must present a CA-issued badge ─────────────
+@server.tool(min_trust_level=1)
+async def place_order(sku: str, quantity: int) -> str:
+    """Place an order for a product. Requires a valid badge."""
+    item = CATALOG.get(sku.upper())
+    if not item:
+        return f"Unknown SKU: {sku}"
+    if quantity < 1:
+        return "Quantity must be at least 1"
+    order = {
+        "id": len(ORDERS) + 1,
+        "sku": sku.upper(),
+        "name": item["name"],
+        "quantity": quantity,
+        "total": item["price"] * quantity,
+    }
+    ORDERS.append(order)
+    return f"Order #{order['id']} placed: {quantity}x {item['name']} = ${order['total']:.2f}"
+
+
+# ── Badge required: higher-risk operation ─────────────────────────────
+@server.tool(min_trust_level=2)
+async def cancel_all_orders() -> str:
+    """Cancel all pending orders. Requires a valid badge."""
+    count = len(ORDERS)
+    ORDERS.clear()
+    return f"Cancelled {count} order(s)"
 
 
 if __name__ == "__main__":
-    main()
+    server.run()

@@ -17,8 +17,8 @@ Self-contained, no LLM required. Each focuses on one security concept with an in
 
 | Demo | What it shows | Time | Quick start |
 |------|---------------|------|-------------|
-| **[Enforcement Demo](#enforcement-demo--zero-to-enforcement)** | `min_trust_level` per tool, badge verification, revocation | 5 min | `cd enforcement-demo && ./setup.sh` |
-| **[MCP Guard Demo](#mcp-guard-demo)** | Server identity, client verification, per-tool trust | 5 min | `cd mcp-demo && docker compose up` |
+| **[Enforcement Demo](#enforcement-demo--zero-to-enforcement)** | Server identity verification, `min_trust_level` per tool, badge verification, revocation | 5 min | `cd enforcement-demo && ./setup.sh` |
+| **[Policy Demo](#policy-demo--policy-as-code)** | Runtime policy changes alter enforcement without code deploys | 10 min | `cd policy-demo && ./setup.sh` |
 
 ### Integration Demos — CapiscIO with real AI frameworks
 
@@ -47,7 +47,7 @@ Requires `OPENAI_API_KEY`. Long-running HTTP servers using the A2A protocol with
 
 **"5 minutes from zero to trust-enforced MCP tools."**
 
-An MCP server with three tools at different trust levels. A trusted agent (with a badge) can call restricted tools; an untrusted agent gets denied. Then we revoke the badge — and even the trusted agent is locked out.
+An MCP server with three tools at different trust levels. The demo starts by verifying the server's cryptographic identity (DID + badge), then runs five enforcement scenarios: a trusted agent (with a badge) can call restricted tools; an untrusted agent gets denied. Then we revoke the badge — and even the trusted agent is locked out.
 
 ### Setup & run
 
@@ -91,28 +91,34 @@ identity = CapiscIO.connect(api_key="sk_live_...", auto_badge=True)
 
 ---
 
-## MCP Guard Demo
+## Policy Demo — Policy as Code
 
-**"Let's Encrypt for MCP servers"** — automatic cryptographic identity, trust badges, and per-tool access control.
+**"Org-level policy changes alter enforcement at runtime — no code changes, no redeployments."**
 
-| Feature | Description |
-|---------|-------------|
-| `MCPServerIdentity.connect()` | One-liner: generates keys, registers DID, obtains badge |
-| Server identity in `_meta` | Every `initialize` response carries the server's DID + badge |
-| Per-tool trust levels | `@server.tool(min_trust_level=N)` — e.g. `list_files`=0, `read_file`=2, `write_file`=3 |
-| Client verification | Client validates server DID + badge before calling tools |
-| Auto-renewal | `ServerBadgeKeeper` renews the badge before it expires |
+The same MCP server and agents produce different ALLOW/DENY outcomes depending on which policy the admin activates in the CapiscIO dashboard.
 
-### Quick start
+### Three Phases
+
+| Phase | Policy | Effect |
+|-------|--------|--------|
+| 1 — Baseline | Default enforcement | Trust levels as coded in `@server.tool()` decorators |
+| 2 — Lockdown | Global allowlist raised | ALL agents denied everything — emergency kill switch |
+| 3 — Selective | `get_price` overridden | A "public" tool becomes restricted without any code change |
+
+### Setup & run
 
 ```bash
-cd mcp-demo
-cp .env.example .env            # Set CAPISCIO_SERVER_ID + CAPISCIO_API_KEY
-docker compose up --build       # Starts MCP server
-docker compose run --rm mcp-client  # Run the client (separate terminal)
+cd policy-demo
+./setup.sh                    # Creates venv, installs deps, downloads binary
+                              # Edit .env — add CAPISCIO_API_KEY
+source .venv/bin/activate
+python scripts/setup_policies.py   # Create the three policies in the registry
+python run_demo.py                 # Interactive — pauses between phases
 ```
 
-**→ Full setup, architecture, and expected output: [`mcp-demo/README.md`](mcp-demo/README.md)**
+The demo pauses between phases so the presenter can switch the active policy in the dashboard.
+
+**→ Full details and policy configuration: [`policy-demo/README.md`](policy-demo/README.md)**
 
 ---
 
@@ -255,7 +261,7 @@ python run_demo.py [OPTIONS]
 When an agent starts with `--serve`, the SDK (`CapiscIO.connect()`) automatically:
 
 1. **Generates Ed25519 key pair** — Stored in `multi-agent-demo/agents/<name>/.capiscio/keys/`
-2. **Derives `did:key` URI** — From the public key (RFC-002 §6.1)
+2. **Derives `did:web` URI** — Server-assigned decentralized identifier
 3. **Registers with registry** — Creates agent record via `/v1/sdk/agents`
 4. **Patches DID + public key** — Links cryptographic identity to agent
 5. **Activates agent** — Sets status to "active"
@@ -273,16 +279,18 @@ a2a-demos/
 ├── enforcement-demo/                 # Zero to Enforcement (5 min)
 │   ├── server/main.py               # MCP server with 3 guarded tools
 │   ├── agents/                      # Trusted + untrusted agents
-│   ├── run_demo.py                  # 5-scenario orchestrator
+│   ├── run_demo.py                  # 5-scenario orchestrator + server identity
 │   ├── setup.sh                     # One-command setup
 │   ├── .env.example                 # Credential template
 │   └── requirements.txt
-├── mcp-demo/                        # MCP Guard demo (Docker)
-│   ├── server/main.py               # Guarded MCP filesystem server
-│   ├── client/main.py               # Client with server verification
-│   ├── docker-compose.yml           # Full stack orchestration
-│   ├── .env.example                 # Config template
-│   └── README.md                    # Detailed MCP demo docs
+├── policy-demo/                     # Policy as Code (10 min)
+│   ├── server/main.py               # MCP server with policy-enforced tools
+│   ├── agents/                      # Trusted + untrusted agents
+│   ├── policies/                    # YAML policy definitions
+│   ├── scripts/setup_policies.py    # Create policies in the registry
+│   ├── run_demo.py                  # 3-phase interactive orchestrator
+│   ├── setup.sh                     # One-command setup
+│   └── .env.example                 # Credential template
 ├── multi-agent-demo/                # Multi-framework agent trust (15 min)
 │   ├── agents/
 │   │   ├── langchain-agent/         # LangChain research agent (port 8001)
@@ -309,18 +317,18 @@ a2a-demos/
             │                         │
      ┌──────┴──────┐      ┌──────────┴──────────┐
      │Agent Guard  │      │    MCP Guard        │
+     │ (A2A Proto) │      │ (Enforcement Demo)  │
      ├─────────────┤      ├─────────────────────┤
      │             │      │                     │
      │  LangChain  │      │  MCP Server         │
-     │  :8001      │      │  MCPServerIdentity  │
-     │             │      │  .connect()         │
-     │  CrewAI     │      │  + per-tool trust   │
-     │  :8002      │      │        │            │
-     │             │      │   stdio│transport   │
-     │  LangGraph  │      │        ▼            │
-     │  :8003      │      │  MCP Client         │
-     │             │      │  verifies server    │
-     │ A2A Proto   │      │  DID + badge        │
+     │  :8001      │      │  identity + badge   │
+     │             │      │  + per-tool trust   │
+     │  CrewAI     │      │        │            │
+     │  :8002      │      │   stdio│transport   │
+     │             │      │        ▼            │
+     │  LangGraph  │      │  MCP Client         │
+     │  :8003      │      │  verifies server    │
+     │             │      │  DID + badge        │
      └─────────────┘      └─────────────────────┘
 ```
 

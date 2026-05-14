@@ -2,7 +2,7 @@
 
 5 minutes from zero to trust-enforced MCP tools.
 
-An MCP server with three tools at different trust levels. A trusted agent (with a CapiscIO badge) can call restricted tools; an untrusted agent gets denied. Then we revoke the badge live — and even the trusted agent is locked out.
+An MCP server with three tools at different trust levels. The demo starts by verifying the server's cryptographic identity (DID + badge), then runs five enforcement scenarios: a trusted agent (with a CapiscIO badge) can call restricted tools; an untrusted agent gets denied. Then we revoke the badge live — and even the trusted agent is locked out.
 
 ## Quick Start
 
@@ -31,7 +31,13 @@ python run_demo.py --auto     # Non-interactive — runs straight through
 
 ## What You'll See
 
-The demo runs 5 scenarios, pausing between each so you can follow along:
+The demo first verifies the MCP server's identity, then runs 5 enforcement scenarios:
+
+### Server Identity Verification
+
+Before any tool calls, the client verifies the server's DID and badge from the MCP `initialize` response. This is bidirectional trust — the server proves its identity to the client, and the client proves its trust to the server via badges.
+
+### Enforcement Scenarios
 
 | # | Agent | Tool | Result | Why |
 |---|-------|------|--------|-----|
@@ -52,12 +58,27 @@ Connecting agents to CapiscIO registry...
   Server URL: https://registry.capisc.io
 
   Connecting trusted agent (with badge)...
-    DID  : did:key:z6Mk...
+    DID  : did:web:registry.capisc.io:agents:...
     Badge: ✓ obtained
 
   Connecting untrusted agent (no badge)...
-    DID  : did:key:z6Mk...
+    DID  : did:web:registry.capisc.io:agents:...
     Badge: ✗ none (as expected)
+
+══════════════════════════════════════════════════════════════
+  Server Identity Verification
+══════════════════════════════════════════════════════════════
+
+  Server DID          : did:web:registry.capisc.io:servers:...
+  Server trust level  : 2
+  Server state        : VERIFIED
+
+  The client verified the server's DID + badge from the
+  initialize response _meta before calling any tools.
+
+  Bidirectional trust:
+    • Servers prove identity to clients (DID + badge in _meta)
+    • Clients prove trust to servers (badge per tool call)
 
 ══════════════════════════════════════════════════════════════
   Running Enforcement Scenarios
@@ -101,8 +122,12 @@ Connecting agents to CapiscIO registry...
 
   All 5 scenarios passed.
 
-  Key takeaway: Trust is enforced per-tool, earned by proof, and
-  revocable in real time — all via `@server.tool(min_trust_level=N)`.
+  Key takeaways:
+    • Access is enforced per-tool, earned by badge, and
+      revocable via agent suspension — all via @server.tool(min_trust_level=N)
+    • The client verified the server's identity before calling any tools
+    • Bidirectional trust: servers prove identity to clients,
+      clients prove trust to servers — both cryptographically verified
 ```
 
 ## Key Code
@@ -126,11 +151,12 @@ identity = CapiscIO.connect(api_key="sk_live_...", auto_badge=True)
 
 ## How It Works
 
-1. The MCP server starts and obtains its identity (DID + badge) via `MCPServerIdentity.from_env()`
-2. The trusted agent connects to the registry, proves key ownership (PoP), and receives a trust badge
-3. The untrusted agent connects but skips badge issuance
-4. Each agent calls tools — `@server.tool(min_trust_level=N)` checks the badge's trust level
-5. The trusted agent's badge is revoked via the API — subsequent calls are denied
+1. The MCP server starts and obtains its identity (DID + badge) via `CapiscioMCPServer.connect()`
+2. The client connects and verifies the server's DID + badge from the `initialize` response `_meta`
+3. The trusted agent connects to the registry, proves key ownership (PoP), and receives a trust badge
+4. The untrusted agent connects but skips badge issuance
+5. Each agent calls tools — `@server.tool(min_trust_level=N)` checks the badge's trust level
+6. The trusted agent's badge is revoked via the API — subsequent calls are denied
 
 ## Files
 

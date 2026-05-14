@@ -385,7 +385,11 @@ async def lifespan(app: FastAPI):
     # Load security configuration from environment
     if SecurityConfig:
         security_config = SecurityConfig.from_env()
-        logger.info(f"🔒 Security config: require_signatures={security_config.downstream.require_signatures}, fail_mode={security_config.fail_mode}")
+        logger.info(
+            f"🔒 Security config: require_signatures="
+            f"{security_config.downstream.require_signatures}, "
+            f"fail_mode={security_config.fail_mode}"
+        )
 
     # CapiscIO.connect() - "Let's Encrypt" style one-liner setup
     # Handles: key generation, DID derivation, registration, badge request
@@ -541,7 +545,11 @@ async def send_task(request: Request, x_capiscio_badge: Optional[str] = Header(N
         logger.warning(f"BLOCKED task {task_id}: trust level {caller_trust} < {min_trust}")
         events.emit(
             EventType.A2A_REQUEST_RECEIVED,
-            {"task_id": task_id, "blocked": True, "reason": "low_trust", "caller_trust": caller_trust, "required": min_trust},
+            {
+                "task_id": task_id, "blocked": True,
+                "reason": "low_trust", "caller_trust": caller_trust,
+                "required": min_trust,
+            },
         )
         if fail_mode == "block":
             return JSONResponse(

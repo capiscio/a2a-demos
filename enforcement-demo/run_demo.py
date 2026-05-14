@@ -302,8 +302,8 @@ async def run_demo() -> None:
         print(f"  {DIM}initialize response _meta before calling any tools.{RESET}")
         print()
         print(f"  {BOLD}Bidirectional trust:{RESET}")
-        print(f"    • Servers prove identity to clients (DID + badge in _meta)")
-        print(f"    • Clients prove trust to servers (badge per tool call)")
+        print("    • Servers prove identity to clients (DID + badge in _meta)")
+        print("    • Clients prove trust to servers (badge per tool call)")
         pause("next: run enforcement scenarios")
 
         results: list[tuple[int, str, str, str, str]] = []
@@ -355,9 +355,12 @@ async def run_demo() -> None:
         else:
             print(f"  {YELLOW}Action required:{RESET} Disable the trusted agent in the dashboard.")
             print(f"    Agent ID : {trusted.agent_id}")
-            print(f"    Dashboard: {os.environ.get('CAPISCIO_SERVER_URL', 'https://registry.capisc.io').replace('registry', 'app').replace('/v1', '')}")
+            dashboard = os.environ.get(
+                'CAPISCIO_SERVER_URL', 'https://registry.capisc.io'
+            ).replace('registry', 'app').replace('/v1', '')
+            print(f"    Dashboard: {dashboard}")
             print()
-            print(f"  Steps: Agents → select agent → Disable")
+            print("  Steps: Agents → select agent → Disable")
             input(f"\n  {YELLOW}▸ Press Enter after disabling the agent in the dashboard{RESET} ")
             print()
             print(f"    {GREEN}✓{RESET} Agent disabled — BadgeKeeper can no longer refresh")
@@ -398,11 +401,11 @@ async def run_demo() -> None:
 
     print()
     print(f"  {BOLD}Key takeaways:{RESET}")
-    print(f"    • Access is enforced per-tool, earned by badge, and")
+    print("    • Access is enforced per-tool, earned by badge, and")
     print(f"      revocable via agent suspension — all via {CYAN}@server.tool(min_trust_level=N){RESET}")
-    print(f"    • The client verified the server's identity before calling any tools")
-    print(f"    • Bidirectional trust: servers prove identity to clients,")
-    print(f"      clients prove trust to servers — both cryptographically verified")
+    print("    • The client verified the server's identity before calling any tools")
+    print("    • Bidirectional trust: servers prove identity to clients,")
+    print("      clients prove trust to servers — both cryptographically verified")
     print()
     print(f"  View audit trail → {CYAN}https://app.capisc.io{RESET}")
     print()

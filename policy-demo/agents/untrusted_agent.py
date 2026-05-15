@@ -12,7 +12,7 @@ from pathlib import Path
 
 from capiscio_sdk import CapiscIO, AgentIdentity
 
-KEYS_DIR = Path(__file__).resolve().parent.parent / ".capiscio" / "keys"
+KEYS_DIR = Path(__file__).resolve().parent.parent / ".capiscio" / "keys" / "untrusted"
 
 
 def connect() -> AgentIdentity:

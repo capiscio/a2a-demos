@@ -86,6 +86,7 @@ install: ## Install ALL demos from PyPI (released versions)
 	@echo ""
 	$(PYTHON) -m pip install -e multi-agent-demo/shared/ -q
 	cd enforcement-demo && $(PYTHON) -m pip install -r requirements.txt -q
+	cd policy-demo && $(PYTHON) -m pip install -r requirements.txt -q
 	@for agent in langchain-agent crewai-agent langgraph-agent; do \
 		echo "  Installing multi-agent-demo/agents/$$agent..."; \
 		cd multi-agent-demo/agents/$$agent && $(PYTHON) -m pip install -r requirements.txt -q && cd ../../..; \
@@ -99,7 +100,10 @@ install: ## Install ALL demos from PyPI (released versions)
 # ─── Demo runners ───────────────────────────────────────────────────────
 
 enforcement-demo: ## Run Enforcement Demo — Zero to Enforcement
-	cd enforcement-demo && source .venv/bin/activate 2>/dev/null; $(PYTHON) run_demo.py
+	cd enforcement-demo && $(PYTHON) run_demo.py
+
+policy-demo: ## Run Policy Demo — Policy hot-swap scenarios
+	cd policy-demo && $(PYTHON) run_demo.py
 
 multi-agent-demo: ## Run Multi-Agent Demo — setup + run agents
 	cd multi-agent-demo && ./setup.sh

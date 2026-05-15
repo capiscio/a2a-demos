@@ -26,6 +26,7 @@ Three phases (presenter switches policies in the dashboard between them):
 Usage:
     source .venv/bin/activate
     python run_demo.py
+    python run_demo.py --verbose  # Show raw request payloads with badge claims
 
 Prerequisites:
     - .env file with credentials
@@ -35,6 +36,8 @@ Prerequisites:
 
 import asyncio
 import atexit
+import base64
+import json
 import logging
 import os
 import subprocess
@@ -71,6 +74,8 @@ logging.basicConfig(
 )
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("capiscio_sdk.connect").setLevel(logging.ERROR)
+
 logging.getLogger("capiscio_mcp").setLevel(logging.WARNING)
 logging.getLogger("capiscio_sdk").setLevel(logging.WARNING)
 
@@ -79,6 +84,9 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from capiscio_mcp.integrations.mcp import CapiscioMCPClient  # noqa: E402
+
+# ── CLI flags ────────────────────────────────────────────────────────────
+VERBOSE = "--verbose" in sys.argv or "-v" in sys.argv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "agents"))
 import trusted_agent  # noqa: E402
@@ -164,6 +172,63 @@ def show_policy_yaml(policy_name: str) -> None:
     print()
 
 
+# ── Verbose request logging ─────────────────────────────────────────────
+
+
+def _decode_badge_claims(badge_jws: str | None) -> dict | None:
+    """Decode the payload of a JWS compact badge for verbose display."""
+    if not badge_jws:
+        return None
+    try:
+        payload_b64 = badge_jws.split(".")[1]
+        padding = 4 - len(payload_b64) % 4
+        if padding != 4:
+            payload_b64 += "=" * padding
+        return json.loads(base64.urlsafe_b64decode(payload_b64))
+    except Exception:
+        return None
+
+
+def _verbose_log(
+    tool_name: str,
+    args: dict,
+    badge_jws: str | None,
+) -> None:
+    """Print the raw request payload when --verbose is active."""
+    if not VERBOSE:
+        return
+
+    print(f"\n    {DIM}┌─ Request ──────────────────────────────────────{RESET}")
+    print(f"    {DIM}│ method : tools/call{RESET}")
+    print(f"    {DIM}│ tool   : {tool_name}{RESET}")
+    print(f"    {DIM}│ args   : {json.dumps(args)}{RESET}")
+
+    if badge_jws:
+        trunc = badge_jws[:40] + "…" + badge_jws[-12:]
+        print(f"    {DIM}│ _meta.capiscio_caller_badge : {trunc}{RESET}")
+
+        claims = _decode_badge_claims(badge_jws)
+        if claims:
+            print(f"    {DIM}│   iss : {claims.get('iss', '—')}{RESET}")
+            print(f"    {DIM}│   sub : {claims.get('sub', '—')}{RESET}")
+            print(f"    {DIM}│   jti : {claims.get('jti', '—')}{RESET}")
+            iat = claims.get("iat")
+            exp = claims.get("exp")
+            if iat:
+                print(f"    {DIM}│   iat : {iat}  ({time.strftime('%H:%M:%S', time.localtime(iat))}){RESET}")
+            if exp:
+                print(f"    {DIM}│   exp : {exp}  ({time.strftime('%H:%M:%S', time.localtime(exp))}){RESET}")
+            vc = claims.get("vc", {})
+            cs = vc.get("credentialSubject", {})
+            level = cs.get("level")
+            if level is not None:
+                print(f"    {DIM}│   trust_level : {level}{RESET}")
+    else:
+        print(f"    {DIM}│ _meta.capiscio_caller_badge : (none){RESET}")
+
+    print(f"    {DIM}└────────────────────────────────────────────────{RESET}")
+
+
 # ── Tool caller ──────────────────────────────────────────────────────────
 
 SERVER_CMD = sys.executable
@@ -207,6 +272,7 @@ async def _safe_call(
 
     Returns (outcome, detail, elapsed_ms).
     """
+    _verbose_log(tool_name, args, client._credential.badge_jws)
     t0 = time.monotonic()
     try:
         result = await client.call_tool(tool_name, args)
@@ -223,8 +289,8 @@ async def _safe_call(
 
 async def run_four_scenarios(
     client: CapiscioMCPClient,
-    trusted_badge: str | None,
-    untrusted_badge: str | None,
+    trusted: object,
+    untrusted: object,
     expected: list[str],
 ) -> bool:
     """
@@ -233,19 +299,40 @@ async def run_four_scenarios(
     Swaps the client badge between calls — the server subprocess (and its
     Go core sidecar + PDP cache) stays warm across all calls.
 
+    trusted/untrusted: AgentIdentity objects — get_badge() is called fresh
+    each time to avoid using an expired badge.
+
     expected: list of 4 expected outcomes, e.g. ["ALLOW", "ALLOW", "ALLOW", "DENY"]
     Returns True if all outcomes match expected.
     """
+    # Pre-check: ensure the badged identity actually has a badge.
+    # The keeper may need extra time after a long pause (user reading slides).
+    badge = trusted.get_badge()
+    if not badge:
+        print(f"  {YELLOW}⏳ Badge not available — waiting for BadgeKeeper...{RESET}")
+        for i in range(15):
+            await asyncio.sleep(1)
+            badge = trusted.get_badge()
+            if badge:
+                print(f"  {GREEN}✓ Badge obtained after {i + 1}s{RESET}")
+                break
+        if not badge:
+            keeper = getattr(trusted, '_keeper', None)
+            running = keeper.is_running() if keeper else False
+            print(f"  {RED}✗ Badge still unavailable after 15s "
+                  f"(keeper={'running' if running else 'STOPPED'}){RESET}")
+            print(f"  {DIM}  Badged scenarios will fail with badge_missing.{RESET}")
+
     scenarios = [
-        (1, "badged", "get_price", {"sku": "WIDGET-A"}, trusted_badge),
-        (2, "badged", "place_order", {"sku": "WIDGET-B", "quantity": 2}, trusted_badge),
-        (3, "unbadged", "get_price", {"sku": "WIDGET-C"}, untrusted_badge),
-        (4, "unbadged", "place_order", {"sku": "WIDGET-A", "quantity": 1}, untrusted_badge),
+        (1, "badged", "get_price", {"sku": "WIDGET-A"}, trusted),
+        (2, "badged", "place_order", {"sku": "WIDGET-B", "quantity": 2}, trusted),
+        (3, "unbadged", "get_price", {"sku": "WIDGET-C"}, untrusted),
+        (4, "unbadged", "place_order", {"sku": "WIDGET-A", "quantity": 1}, untrusted),
     ]
 
     results: list[tuple[str, str]] = []
-    for num, agent, tool, args, badge in scenarios:
-        client.set_badge(badge)
+    for num, agent, tool, args, identity in scenarios:
+        client.set_badge(identity.get_badge())
         scenario_header(num, agent, tool, "?")
         outcome, detail, ms = await _safe_call(client, tool, args)
         result_line(outcome, detail, ms)
@@ -340,7 +427,7 @@ async def run_demo() -> None:
         print(f"{YELLOW}{'─' * 60}{RESET}")
         input(f"\n  Press {BOLD}Enter{RESET} when the baseline policy is active... ")
 
-        await run_four_scenarios(client, trusted.get_badge(), untrusted.get_badge(),
+        await run_four_scenarios(client, trusted, untrusted,
                                 expected=["ALLOW", "ALLOW", "ALLOW", "DENY"])
 
         # ── Phase 2: Lockdown ────────────────────────────────────────
@@ -367,7 +454,7 @@ async def run_demo() -> None:
         print(f"{YELLOW}{'─' * 60}{RESET}")
         input(f"\n  Press {BOLD}Enter{RESET} when the lockdown policy is active... ")
 
-        await run_four_scenarios(client, trusted.get_badge(), untrusted.get_badge(),
+        await run_four_scenarios(client, trusted, untrusted,
                                 expected=["DENY", "DENY", "DENY", "DENY"])
 
         # ── Phase 3: Selective ───────────────────────────────────────
@@ -394,7 +481,7 @@ async def run_demo() -> None:
         print(f"{YELLOW}{'─' * 60}{RESET}")
         input(f"\n  Press {BOLD}Enter{RESET} when the selective policy is active... ")
 
-        await run_four_scenarios(client, trusted.get_badge(), untrusted.get_badge(),
+        await run_four_scenarios(client, trusted, untrusted,
                                 expected=["ALLOW", "ALLOW", "DENY", "DENY"])
 
     # ── Summary ──────────────────────────────────────────────────────
@@ -424,7 +511,6 @@ def main() -> None:
     # Suppress noisy shutdown tracebacks on Ctrl+C — the async generators
     # and gRPC streams complain about unclean teardown, which is expected.
     logging.getLogger("asyncio").setLevel(logging.CRITICAL)
-    logging.getLogger("capiscio_sdk.badge_keeper").setLevel(logging.CRITICAL)
     try:
         asyncio.run(run_demo())
     except KeyboardInterrupt:

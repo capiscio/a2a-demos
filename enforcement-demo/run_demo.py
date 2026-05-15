@@ -6,13 +6,12 @@ Demonstrates bidirectional trust enforcement on an MCP server:
 
   1. Server identity verification — the client verifies the server's
      DID + badge from the initialize response before calling any tools
-  2. Five enforcement scenarios showing per-tool badge requirements:
+  2. Four enforcement scenarios showing per-tool badge requirements:
 
      Scenario 1: Badged agent   → get_price    (open)     → ALLOW
      Scenario 2: Badged agent   → place_order  (badge)    → ALLOW
      Scenario 3: Unbadged agent → get_price    (open)     → ALLOW
      Scenario 4: Unbadged agent → place_order  (badge)    → DENY
-     Scenario 5: Suspended      → place_order  (badge)    → DENY
 
 The MCP server runs as a subprocess (stdio transport).
 Each agent connects to the CapiscIO registry, obtains (or skips) a badge,
@@ -23,6 +22,7 @@ Usage:
     source .venv/bin/activate
     python run_demo.py            # Interactive (pauses between scenarios)
     python run_demo.py --auto     # Non-interactive (no pauses)
+    python run_demo.py --verbose  # Show raw request payloads with badge claims
 
 Prerequisites:
     - .env file with CAPISCIO_API_KEY, CAPISCIO_SERVER_ID, CAPISCIO_SERVER_URL
@@ -48,6 +48,8 @@ logging.basicConfig(
 # Quiet the noisy libraries
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("capiscio_sdk.connect").setLevel(logging.ERROR)
+# Note: httpx/httpcore loggers suppressed because capiscio_sdk uses httpx internally
 logging.getLogger("capiscio_mcp").setLevel(logging.WARNING)
 logging.getLogger("capiscio_sdk").setLevel(logging.WARNING)
 # Suppress gRPC C-core noise (ev_poll_posix.cc, fork_posix.cc, etc.)
@@ -73,8 +75,6 @@ _cleanup_core_processes()
 atexit.register(_cleanup_core_processes)
 
 from dotenv import load_dotenv  # noqa: E402
-import httpx  # noqa: E402
-
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 from capiscio_mcp.integrations.mcp import CapiscioMCPClient  # noqa: E402
@@ -119,8 +119,9 @@ def result_line(outcome: str, detail: str, ms: int = 0) -> None:
     print(f"  Result: {color}{BOLD}{outcome}{RESET} — {detail}{timing}")
 
 
-# ── CLI flag ─────────────────────────────────────────────────────────────
+# ── CLI flags ────────────────────────────────────────────────────────────
 AUTO_MODE = "--auto" in sys.argv or "--no-pause" in sys.argv
+VERBOSE = "--verbose" in sys.argv or "-v" in sys.argv
 
 
 def pause(hint: str = "") -> None:
@@ -132,51 +133,6 @@ def pause(hint: str = "") -> None:
         msg += f"  {YELLOW}({hint}){RESET}"
     input(msg + " ")
     print()
-
-
-def _extract_jti(badge_token: str) -> str | None:
-    """Extract the JTI claim from a JWS compact badge token."""
-    try:
-        payload_b64 = badge_token.split(".")[1]
-        # Pad base64url to standard base64
-        padding = 4 - len(payload_b64) % 4
-        if padding != 4:
-            payload_b64 += "=" * padding
-        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
-        return payload.get("jti")
-    except Exception:
-        return None
-
-
-async def revoke_badge_via_api(badge_token: str) -> bool:
-    """Revoke a badge by calling the SDK revocation endpoint.
-
-    Uses the API key for auth via the SDK route /v1/sdk/badges/{jti}/revoke.
-    This route accepts either API key (X-Capiscio-Registry-Key) or badge auth.
-    """
-    jti = _extract_jti(badge_token)
-    if not jti:
-        print(f"    {RED}Could not extract JTI from badge{RESET}")
-        return False
-
-    server_url = os.environ.get("CAPISCIO_SERVER_URL", "https://registry.capisc.io")
-    api_key = os.environ.get("CAPISCIO_API_KEY", "")
-    if not api_key:
-        print(f"    {RED}✗{RESET} CAPISCIO_API_KEY not set — cannot revoke badge")
-        return False
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{server_url}/v1/sdk/badges/{jti}/revoke",
-            json={"reason": "demo_revocation"},
-            headers={"X-Capiscio-Registry-Key": api_key},
-            timeout=10.0,
-        )
-        if resp.status_code in (200, 204):
-            print(f"    {GREEN}✓{RESET} Badge revoked (JTI: {jti[:12]}…)")
-            return True
-        print(f"    {RED}✗{RESET} Revocation failed: {resp.status_code} — {resp.text}")
-        return False
 
 
 # ── Result parsing ───────────────────────────────────────────────────────
@@ -210,6 +166,62 @@ def _parse_result(result: object) -> tuple[str, str]:
     return ("ALLOW", text)
 
 
+def _decode_badge_claims(badge_jws: str | None) -> dict | None:
+    """Decode the payload of a JWS compact badge for verbose display."""
+    if not badge_jws:
+        return None
+    try:
+        payload_b64 = badge_jws.split(".")[1]
+        padding = 4 - len(payload_b64) % 4
+        if padding != 4:
+            payload_b64 += "=" * padding
+        return json.loads(base64.urlsafe_b64decode(payload_b64))
+    except Exception:
+        return None
+
+
+def _verbose_log(
+    tool_name: str,
+    args: dict,
+    badge_jws: str | None,
+) -> None:
+    """Print the raw request payload when --verbose is active."""
+    if not VERBOSE:
+        return
+
+    print(f"\n  {DIM}┌─ Request ──────────────────────────────────────{RESET}")
+    print(f"  {DIM}│ method : tools/call{RESET}")
+    print(f"  {DIM}│ tool   : {tool_name}{RESET}")
+    print(f"  {DIM}│ args   : {json.dumps(args)}{RESET}")
+
+    if badge_jws:
+        # Show truncated JWS
+        trunc = badge_jws[:40] + "…" + badge_jws[-12:]
+        print(f"  {DIM}│ _meta.capiscio_caller_badge : {trunc}{RESET}")
+
+        claims = _decode_badge_claims(badge_jws)
+        if claims:
+            print(f"  {DIM}│   iss : {claims.get('iss', '—')}{RESET}")
+            print(f"  {DIM}│   sub : {claims.get('sub', '—')}{RESET}")
+            print(f"  {DIM}│   jti : {claims.get('jti', '—')}{RESET}")
+            iat = claims.get("iat")
+            exp = claims.get("exp")
+            if iat:
+                print(f"  {DIM}│   iat : {iat}  ({time.strftime('%H:%M:%S', time.localtime(iat))}){RESET}")
+            if exp:
+                print(f"  {DIM}│   exp : {exp}  ({time.strftime('%H:%M:%S', time.localtime(exp))}){RESET}")
+            # Show trust level from vc claims if present
+            vc = claims.get("vc", {})
+            cs = vc.get("credentialSubject", {})
+            level = cs.get("level")
+            if level is not None:
+                print(f"  {DIM}│   trust_level : {level}{RESET}")
+    else:
+        print(f"  {DIM}│ _meta.capiscio_caller_badge : (none){RESET}")
+
+    print(f"  {DIM}└────────────────────────────────────────────────{RESET}")
+
+
 async def _safe_call(
     client: CapiscioMCPClient,
     tool_name: str,
@@ -219,6 +231,7 @@ async def _safe_call(
 
     Returns (outcome, detail, elapsed_ms).
     """
+    _verbose_log(tool_name, args, client._credential.badge_jws)
     t0 = time.monotonic()
     try:
         result = await client.call_tool(tool_name, args)
@@ -342,41 +355,6 @@ async def run_demo() -> None:
         result_line(outcome, detail, ms)
         results.append((4, "untrusted (no badge)", "place_order", "DENY", outcome))
 
-        # Scenario 5: Agent suspended → badge expires → DENY
-        # In interactive mode: admin disables the agent in the dashboard,
-        # then the demo clears the badge to represent post-TTL expiry.
-        scenario_header(5, "trusted (SUSPENDED)", "place_order", 1, "DENY")
-
-        if AUTO_MODE:
-            # In auto mode, simulate the suspension without dashboard interaction
-            print("  Suspending agent (simulated)...")
-            print(f"    {GREEN}✓{RESET} Agent suspended — BadgeKeeper will stop refreshing")
-            print(f"    {GREEN}✓{RESET} Badge expired (TTL elapsed, no renewal)")
-        else:
-            print(f"  {YELLOW}Action required:{RESET} Disable the trusted agent in the dashboard.")
-            print(f"    Agent ID : {trusted.agent_id}")
-            dashboard = os.environ.get(
-                'CAPISCIO_SERVER_URL', 'https://registry.capisc.io'
-            ).replace('registry', 'app').replace('/v1', '')
-            print(f"    Dashboard: {dashboard}")
-            print()
-            print("  Steps: Agents → select agent → Disable")
-            input(f"\n  {YELLOW}▸ Press Enter after disabling the agent in the dashboard{RESET} ")
-            print()
-            print(f"    {GREEN}✓{RESET} Agent disabled — BadgeKeeper can no longer refresh")
-            print(f"    {GREEN}✓{RESET} Badge expired (TTL elapsed, no renewal)")
-
-        client.set_badge(None)
-        outcome, detail, ms = await _safe_call(
-            client, "place_order", {"sku": "WIDGET-A", "quantity": 1}
-        )
-        result_line(outcome, detail, ms)
-        results.append((5, "trusted (SUSPENDED)", "place_order", "DENY", outcome))
-
-        if not AUTO_MODE:
-            print()
-            print(f"  {YELLOW}⚠  Remember to re-enable the agent in the dashboard before the next run.{RESET}")
-            print(f"    Agent ID : {trusted.agent_id}")
         pause("show summary")
 
     # ── Summary table ────────────────────────────────────────────────
@@ -395,15 +373,13 @@ async def run_demo() -> None:
 
     print()
     if all_pass:
-        print(f"  {GREEN}{BOLD}All 5 scenarios passed.{RESET}")
+        print(f"  {GREEN}{BOLD}All 4 scenarios passed.{RESET}")
     else:
         print(f"  {RED}{BOLD}Some scenarios did not match expected outcomes.{RESET}")
 
     print()
     print(f"  {BOLD}Key takeaways:{RESET}")
-    print("    • Access is enforced per-tool, earned by badge, and")
-    print(f"      revocable via agent suspension — all via {CYAN}@server.tool(min_trust_level=N){RESET}")
-    print("    • The client verified the server's identity before calling any tools")
+    print(f"    • Per-tool enforcement via {CYAN}@server.tool(min_trust_level=N){RESET}")
     print("    • Bidirectional trust: servers prove identity to clients,")
     print("      clients prove trust to servers — both cryptographically verified")
     print()

@@ -262,12 +262,11 @@ async def run_demo() -> None:
     print(f"    DID  : {trusted.did}")
 
     # Badge is issued asynchronously by the BadgeKeeper — wait for it
-    import time
     trusted_badge = trusted.get_badge()
     if not trusted_badge:
         print("    Badge: ⏳ waiting for BadgeKeeper...")
         for _ in range(10):
-            time.sleep(1)
+            await asyncio.sleep(1)
             trusted_badge = trusted.get_badge()
             if trusted_badge:
                 break

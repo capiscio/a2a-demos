@@ -2,7 +2,7 @@
 
 5 minutes from zero to trust-enforced MCP tools.
 
-An MCP server with three tools at different trust levels. The demo starts by verifying the server's cryptographic identity (DID + badge), then runs five enforcement scenarios: a trusted agent (with a CapiscIO badge) can call restricted tools; an untrusted agent gets denied. Then we revoke the badge live — and even the trusted agent is locked out.
+An MCP server with three tools at different trust levels. The demo starts by verifying the server's cryptographic identity (DID + badge), then runs four enforcement scenarios: a trusted agent (with a CapiscIO badge) can call restricted tools while an untrusted agent gets denied.
 
 ## Quick Start
 
@@ -31,7 +31,7 @@ python run_demo.py --auto     # Non-interactive — runs straight through
 
 ## What You'll See
 
-The demo first verifies the MCP server's identity, then runs 5 enforcement scenarios:
+The demo first verifies the MCP server's identity, then runs 4 enforcement scenarios:
 
 ### Server Identity Verification
 
@@ -45,7 +45,6 @@ Before any tool calls, the client verifies the server's DID and badge from the M
 | 2 | Trusted (badged) | `place_order` | ✓ ALLOW | Badge proves key ownership (PoP) |
 | 3 | Untrusted (no badge) | `get_price` | ✓ ALLOW | Open tool — no badge needed |
 | 4 | Untrusted (no badge) | `place_order` | ✗ DENY | No badge → can't meet trust level 1 |
-| 5 | Trusted (badge **revoked**) | `place_order` | ✗ DENY | Badge revoked → trust is gone |
 
 ### Expected output
 
@@ -98,16 +97,6 @@ Connecting agents to CapiscIO registry...
 
   Result: DENY — badge_missing: badge required but not provided
 
-── Scenario 5 ──────────────────────────────────────────
-  Agent : trusted (badge REVOKED)
-  Tool  : place_order (min_trust_level=1)
-  Expect: DENY
-
-  Revoking trusted agent's badge...
-    ✓ Badge revoked (JTI: a1b2c3d4e5f6…)
-
-  Result: DENY — badge_revoked: badge has been revoked
-
 ══════════════════════════════════════════════════════════════
   Results
 ══════════════════════════════════════════════════════════════
@@ -118,9 +107,8 @@ Connecting agents to CapiscIO registry...
   2    trusted (badged)       place_order      ALLOW      ALLOW      ✓
   3    untrusted (no badge)   get_price        ALLOW      ALLOW      ✓
   4    untrusted (no badge)   place_order      DENY       DENY       ✓
-  5    trusted (REVOKED)      place_order      DENY       DENY       ✓
 
-  All 5 scenarios passed.
+  All 4 scenarios passed.
 
   Key takeaways:
     • Access is enforced per-tool, earned by badge, and
@@ -156,13 +144,12 @@ identity = CapiscIO.connect(api_key="sk_live_...", auto_badge=True)
 3. The trusted agent connects to the registry, proves key ownership (PoP), and receives a trust badge
 4. The untrusted agent connects but skips badge issuance
 5. Each agent calls tools — `@server.tool(min_trust_level=N)` checks the badge's trust level
-6. The trusted agent's badge is revoked via the API — subsequent calls are denied
 
 ## Files
 
 ```
 enforcement-demo/
-├── run_demo.py             # Orchestrator — 5 interactive scenarios
+├── run_demo.py             # Orchestrator — 4 interactive scenarios
 ├── server/main.py          # MCP server with 3 guarded tools
 ├── agents/
 │   ├── trusted_agent.py    # Badged agent (auto_badge=True)
@@ -180,4 +167,4 @@ enforcement-demo/
 | `Badge: ✗ none` for trusted agent | Check your API key is valid and the registry URL is reachable |
 | `Server ... not found` with a UUID | The server ID doesn't exist in your org. Set `CAPISCIO_SERVER_ID=auto` to create one |
 | `ModuleNotFoundError: capiscio_mcp` | Run `./setup.sh` first, then `source .venv/bin/activate` |
-| Scenario 5 shows ALLOW after revocation | Badge propagation takes ~2s. If still failing, check your network connection |
+

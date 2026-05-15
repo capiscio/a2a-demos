@@ -47,7 +47,7 @@ Requires `OPENAI_API_KEY`. Long-running HTTP servers using the A2A protocol with
 
 **"5 minutes from zero to trust-enforced MCP tools."**
 
-An MCP server with three tools at different trust levels. The demo starts by verifying the server's cryptographic identity (DID + badge), then runs five enforcement scenarios: a trusted agent (with a badge) can call restricted tools; an untrusted agent gets denied. Then we revoke the badge — and even the trusted agent is locked out.
+An MCP server with three tools at different trust levels. The demo starts by verifying the server's cryptographic identity (DID + badge), then runs four enforcement scenarios: a trusted agent (with a badge) can call restricted tools while an untrusted agent gets denied.
 
 ### Setup & run
 
@@ -69,7 +69,6 @@ python run_demo.py
 | 2 | Trusted (badged) | `place_order` | ✓ ALLOW | Badge proves key ownership |
 | 3 | Untrusted (no badge) | `get_price` | ✓ ALLOW | Open tool — no badge needed |
 | 4 | Untrusted (no badge) | `place_order` | ✗ **DENY** | No badge → trust level too low |
-| 5 | Trusted (badge **revoked**) | `place_order` | ✗ **DENY** | Badge revoked in real time |
 
 ### Key code
 

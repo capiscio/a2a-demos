@@ -20,10 +20,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
       
@@ -49,17 +49,17 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
           cache: 'pip'
       
       - name: Install shared capiscio_events module
         run: |
-          cd shared
+          cd multi-agent-demo/shared
           pip install -e .
       
       - name: Verify import
@@ -77,23 +77,23 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-          cache-dependency-path: 'agents/${{ matrix.agent }}/requirements.txt'
+          cache-dependency-path: 'multi-agent-demo/agents/${{ matrix.agent }}/requirements.txt'
       
       - name: Install shared module first
         run: |
-          cd shared
+          cd multi-agent-demo/shared
           pip install -e .
       
       - name: Install ${{ matrix.agent }} dependencies
         run: |
-          cd agents/${{ matrix.agent }}
+          cd multi-agent-demo/agents/${{ matrix.agent }}
           python -m pip install --upgrade pip
           pip install uv
           # Override protobuf constraint: crewai's opentelemetry wants <6.0
@@ -103,7 +103,7 @@ jobs:
       
       - name: Verify imports
         run: |
-          cd agents/${{ matrix.agent }}
+          cd multi-agent-demo/agents/${{ matrix.agent }}
           # Test that main.py can be imported (without running server)
           python -c "import sys; import main; print('✓ ${{ matrix.agent }} imports successfully')"
 
@@ -114,7 +114,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       
       # Future: Use validate-a2a action to check agent card schema
       # when agents can be started without API keys

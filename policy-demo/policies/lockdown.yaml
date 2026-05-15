@@ -1,0 +1,21 @@
+# Lockdown Policy — emergency response
+#
+# Restricts ALL tools to an explicit allowlist of agent DIDs.
+# Since the allowlist is empty, no agent can access anything.
+#
+# Use case: incident response, compliance lockdown, or "red button"
+# scenarios where you need to immediately revoke all agent access.
+# To restore access, add specific agent DIDs to allowed_dids.
+#
+# Expected outcomes with this policy active:
+#   Badged agent    → get_price       → DENY  (not in allowlist)
+#   Badged agent    → place_order     → DENY  (not in allowlist)
+#   Unbadged agent  → get_price       → DENY  (not in allowlist)
+#   Unbadged agent  → place_order     → DENY  (not in allowlist)
+
+version: "1"
+min_trust_level: ""
+allowed_dids:
+  - "did:web:lockdown-placeholder.capisc.io"
+denied_dids: []
+mcp_tools: []

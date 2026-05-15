@@ -11,205 +11,113 @@
 
 ## Demos at a Glance
 
+### Concept Demos — understand CapiscIO security
+
+Self-contained, no LLM required. Each focuses on one security concept with an interactive walkthrough.
+
 | Demo | What it shows | Time | Quick start |
 |------|---------------|------|-------------|
-| **[Demo One: Zero to Enforcement](#demo-one--zero-to-enforcement)** | `@guard` decorator, trust levels, badge-based access control | 5 min | `cd demo-one && ./setup.sh` |
-| **[Demo Two: Policy as Code](#demo-two--policy-as-code)** | Runtime policy changes alter enforcement — no code deploy | 10 min | `cd demo-two && ./setup.sh` |
-| **[MCP Guard Demo](#mcp-guard-demo)** | Server identity, per-tool trust, client verification | 5 min | `cd mcp-demo && docker compose up` |
-| **[Agent Guard Demos](#agent-guard-demos)** | 3 framework agents with DID, badges, real-time events | 15 min | `./scripts/setup.sh` |
+| **[Enforcement Demo](#enforcement-demo--zero-to-enforcement)** | Server identity verification, `min_trust_level` per tool, badge verification, revocation | 5 min | `cd enforcement-demo && ./setup.sh` |
+| **[Policy Demo](#policy-demo--policy-as-code)** | Runtime policy changes alter enforcement without code deploys | 10 min | `cd policy-demo && ./setup.sh` |
 
-**New to CapiscIO?** Start with Demo One — it takes 5 minutes and shows the core concept.
+### Integration Demos — CapiscIO with real AI frameworks
+
+Requires `OPENAI_API_KEY`. Long-running HTTP servers using the A2A protocol with real LLM calls.
+
+| Demo | What it shows | Time | Quick start |
+|------|---------------|------|-------------|
+| **[Agent Guard Demos](#agent-guard-demos)** | LangChain, CrewAI, LangGraph agents with DIDs, badges, events | 15 min | `cd multi-agent-demo && ./setup.sh` |
+
+**New to CapiscIO?** Start with the Enforcement Demo — 5 minutes, one API key, and you'll see trust enforcement in action.
 
 ---
 
 ## Prerequisites
 
-- Python 3.11+
-- A free CapiscIO account — sign up at [app.capisc.io](https://app.capisc.io)
-- API key from Dashboard → Settings → API Keys
-- An MCP server registered in the dashboard (for demo-one and demo-two)
+1. **Python 3.11+**
+2. **A free CapiscIO account** — sign up at [app.capisc.io](https://app.capisc.io)
+3. **API key** — Dashboard → Settings → API Keys
+4. **OpenAI API key** *(only for integration demos)*
 
-> **PyCon attendees:** Run `./setup.sh` at home before the conference. It pre-downloads a ~15 MB binary that the demos need. Conference Wi-Fi is unreliable.
+> **Tip:** Run `./setup.sh` before going offline — it pre-downloads a ~15 MB binary that the demos need.
 
 ---
 
-## Demo One — Zero to Enforcement
+## Enforcement Demo — Zero to Enforcement
 
 **"5 minutes from zero to trust-enforced MCP tools."**
 
-An MCP server with three tools at different trust levels. A trusted agent (with a badge) can call restricted tools; an untrusted agent (no badge) gets denied.
+An MCP server with three tools at different trust levels. The demo starts by verifying the server's cryptographic identity (DID + badge), then runs four enforcement scenarios: a trusted agent (with a badge) can call restricted tools while an untrusted agent gets denied.
 
-### What you'll see
-
-| Scenario | Agent | Tool | Trust Level | Result |
-|----------|-------|------|-------------|--------|
-| 1 | Trusted (badged) | `get_price` | 0 (open) | ALLOW |
-| 2 | Trusted (badged) | `place_order` | 1 (PoP) | ALLOW |
-| 3 | Untrusted (no badge) | `get_price` | 0 (open) | ALLOW |
-| 4 | Untrusted (no badge) | `place_order` | 1 (PoP) | **DENY** |
-| 5 | Trusted (badge **revoked**) | `place_order` | 1 (PoP) | **DENY** |
-
-### Setup
+### Setup & run
 
 ```bash
-cd demo-one
-./setup.sh              # Creates venv, installs deps, downloads binary
-                        # Auto-creates .env from .env.example if missing
-```
-
-Edit `.env` with your credentials:
-- `CAPISCIO_API_KEY` — from [app.capisc.io](https://app.capisc.io) → Settings → API Keys
-- `CAPISCIO_SERVER_ID` — from Dashboard → MCP Servers (or set to `auto`)
-
-### Run
-
-```bash
+cd enforcement-demo
+./setup.sh                    # Creates venv, installs deps, downloads binary
+                              # Edit .env — add CAPISCIO_API_KEY
 source .venv/bin/activate
 python run_demo.py
 ```
+
+> Only two env vars needed: `CAPISCIO_API_KEY` (from dashboard) and `CAPISCIO_SERVER_ID` (set to `auto` to create one automatically).
+
+### What you'll see
+
+| # | Agent | Tool | Result | Why |
+|---|-------|------|--------|-----|
+| 1 | Trusted (badged) | `get_price` | ✓ ALLOW | Open tool |
+| 2 | Trusted (badged) | `place_order` | ✓ ALLOW | Badge proves key ownership |
+| 3 | Untrusted (no badge) | `get_price` | ✓ ALLOW | Open tool — no badge needed |
+| 4 | Untrusted (no badge) | `place_order` | ✗ **DENY** | No badge → trust level too low |
 
 ### Key code
 
 **Server** — one decorator per tool:
 ```python
-@server.tool(min_trust_level=0)
+@server.tool(min_trust_level=0)    # open to all
 async def get_price(sku: str) -> str: ...
 
-@server.tool(min_trust_level=1)
+@server.tool(min_trust_level=1)    # requires PoP badge
 async def place_order(sku: str, quantity: int) -> str: ...
-
-@server.tool(min_trust_level=2)
-async def cancel_all_orders() -> str: ...
 ```
 
 **Agent** — one line to connect:
 ```python
-identity = CapiscIO.connect(api_key=..., auto_badge=True)
+identity = CapiscIO.connect(api_key="sk_live_...", auto_badge=True)
 ```
 
-### Files
-
-```
-demo-one/
-├── server/main.py          # MCP server with 3 guarded tools
-├── agents/
-│   ├── trusted_agent.py    # Badged agent (auto_badge=True)
-│   └── untrusted_agent.py  # No-badge agent (auto_badge=False)
-├── run_demo.py             # Orchestrator: 4 scenarios
-├── setup.sh                # Environment setup + binary download
-├── .env.example            # Credential template
-└── requirements.txt
-```
+**→ Full details, expected output, and troubleshooting: [`enforcement-demo/README.md`](enforcement-demo/README.md)**
 
 ---
 
-## Demo Two — Policy as Code
+## Policy Demo — Policy as Code
 
-**"Same code, three different enforcement outcomes — changed by policy, not deploy."**
+**"Org-level policy changes alter enforcement at runtime — no code changes, no redeployments."**
 
-Shows how org-level policy changes alter trust enforcement at runtime. The presenter switches policies in the dashboard between phases; the same agents and server produce different ALLOW/DENY results.
+The same MCP server and agents produce different ALLOW/DENY outcomes depending on which policy the admin activates in the CapiscIO dashboard.
 
 ### Three Phases
 
-**Phase 1 — Baseline** (trust levels as coded)
-| Agent | get_price | place_order |
-|-------|-----------|-------------|
-| Trusted (DV) | ALLOW | ALLOW |
-| Untrusted | ALLOW | **DENY** |
+| Phase | Policy | Effect |
+|-------|--------|--------|
+| 1 — Baseline | Default enforcement | Trust levels as coded in `@server.tool()` decorators |
+| 2 — Lockdown | Global allowlist raised | ALL agents denied everything — emergency kill switch |
+| 3 — Selective | `get_price` overridden | A "public" tool becomes restricted without any code change |
 
-**Phase 2 — Lockdown** (global min raised to EV)
-| Agent | get_price | place_order |
-|-------|-----------|-------------|
-| Trusted (DV) | **DENY** | **DENY** |
-| Untrusted | **DENY** | **DENY** |
-
-**Phase 3 — Selective** (get_price overridden to require DV)
-| Agent | get_price | place_order |
-|-------|-----------|-------------|
-| Trusted (DV) | ALLOW | ALLOW |
-| Untrusted | **DENY** | **DENY** |
-
-### Setup
+### Setup & run
 
 ```bash
-cd demo-two
-./setup.sh              # Auto-creates .env from .env.example if missing
-```
-
-Edit `.env` with your credentials (API key, server ID, org ID, admin JWT).
-
-Create the three policy proposals:
-```bash
+cd policy-demo
+./setup.sh                    # Creates venv, installs deps, downloads binary
+                              # Edit .env — add CAPISCIO_API_KEY
 source .venv/bin/activate
-python scripts/setup_policies.py
+python scripts/setup_policies.py   # Create the three policies in the registry
+python run_demo.py                 # Interactive — pauses between phases
 ```
 
-### Run
+The demo pauses between phases so the presenter can switch the active policy in the dashboard.
 
-```bash
-python run_demo.py
-```
-
-The script pauses between phases so you can switch policies in the dashboard.
-
-### Policy files
-
-```yaml
-# policies/lockdown.yaml — emergency response
-version: "1"
-min_trust_level: "EV"
-```
-
-```yaml
-# policies/selective.yaml — per-tool override
-version: "1"
-mcp_tools:
-  - tool: "get_price"
-    min_trust_level: "DV"
-```
-
-### Files
-
-```
-demo-two/
-├── policies/
-│   ├── baseline.yaml       # Default enforcement
-│   ├── lockdown.yaml       # Global min = EV (deny all)
-│   └── selective.yaml      # get_price overridden to DV
-├── scripts/
-│   └── setup_policies.py   # Creates policy proposals via admin JWT
-├── server/main.py           # Same MCP server as demo-one
-├── agents/                  # Same agents as demo-one
-├── run_demo.py              # Interactive 3-phase orchestrator
-├── setup.sh
-├── .env.example
-└── requirements.txt
-```
-
----
-
-## MCP Guard Demo
-
-**"Let's Encrypt for MCP servers"** — automatic cryptographic identity, trust badges, and per-tool access control.
-
-| Feature | Description |
-|---------|-------------|
-| `MCPServerIdentity.connect()` | One-liner: generates keys, registers DID, obtains badge |
-| Server identity in `_meta` | Every `initialize` response carries the server's DID + badge |
-| Per-tool trust levels | `@server.tool(min_trust_level=N)` — e.g. `list_files`=0, `read_file`=2, `write_file`=3 |
-| Client verification | Client validates server DID + badge before calling tools |
-| Auto-renewal | `ServerBadgeKeeper` renews the badge before it expires |
-
-### Quick start
-
-```bash
-cd mcp-demo
-cp .env.example .env            # Set CAPISCIO_SERVER_ID + CAPISCIO_API_KEY
-docker compose up --build       # Starts MCP server
-docker compose run --rm mcp-client  # Run the client (separate terminal)
-```
-
-**→ Full setup, architecture, and expected output: [`mcp-demo/README.md`](mcp-demo/README.md)**
+**→ Full details and policy configuration: [`policy-demo/README.md`](policy-demo/README.md)**
 
 ---
 
@@ -234,14 +142,14 @@ All agents use `CapiscIO.connect()` to get a cryptographic identity (DID), regis
 ### 1. Setup agent environments
 
 ```bash
-cd a2a-demos
-./scripts/setup.sh   # Creates per-agent .venvs, installs deps + shared module
-                     # Auto-creates .env files from .env.example if missing
+cd multi-agent-demo
+./setup.sh   # Creates per-agent .venvs, installs deps + shared module
+             # Auto-creates .env from .env.example if missing
 ```
 
 ### 2. Configure environment
 
-Edit `.env` with your credentials:
+Edit `multi-agent-demo/.env` with your credentials:
 ```env
 OPENAI_API_KEY=sk-your-openai-key
 OPENAI_MODEL=gpt-4o-mini
@@ -259,47 +167,47 @@ Each agent needs its own terminal:
 
 ```bash
 # Terminal 1: LangChain Research Agent
-cd a2a-demos/agents/langchain-agent
+cd multi-agent-demo/agents/langchain-agent
 source .venv/bin/activate
 python main.py --serve                # port 8001
 
 # Terminal 2: CrewAI Content Crew
-cd a2a-demos/agents/crewai-agent
+cd multi-agent-demo/agents/crewai-agent
 source .venv/bin/activate
 python main.py --serve                # port 8002
 
 # Terminal 3: LangGraph Support Agent
-cd a2a-demos/agents/langgraph-agent
+cd multi-agent-demo/agents/langgraph-agent
 source .venv/bin/activate
 python main.py --serve                # port 8003
 ```
 
 Or launch all at once with tmux:
 ```bash
-./scripts/run-agents.sh
+./run-agents.sh
 ```
 
 ### 4. Run the demo driver
 
 In a new terminal:
 ```bash
-cd a2a-demos
+cd multi-agent-demo
 source agents/langchain-agent/.venv/bin/activate
 
 # Discover running agents
-python scripts/demo_driver.py --discover
+python run_demo.py --discover
 
 # Send tasks to all agents
-python scripts/demo_driver.py
+python run_demo.py
 
 # Send task to one agent
-python scripts/demo_driver.py --agent langchain
+python run_demo.py --agent langchain
 
 # Custom task
-python scripts/demo_driver.py --agent crewai --task "Write a haiku about trust"
+python run_demo.py --agent crewai --task "Write a haiku about trust"
 
 # Multi-agent chain (agents calling each other)
-python scripts/demo_driver.py --chain
+python run_demo.py --chain
 ```
 
 ### 5. Watch events
@@ -334,7 +242,7 @@ Default ports (overridable via env):
 ### Demo Driver CLI
 
 ```
-python scripts/demo_driver.py [OPTIONS]
+python run_demo.py [OPTIONS]
 ```
 
 | Flag | Description |
@@ -351,8 +259,8 @@ python scripts/demo_driver.py [OPTIONS]
 
 When an agent starts with `--serve`, the SDK (`CapiscIO.connect()`) automatically:
 
-1. **Generates Ed25519 key pair** — Stored in `agents/<name>/.capiscio/keys/`
-2. **Derives `did:key` URI** — From the public key (RFC-002 §6.1)
+1. **Generates Ed25519 key pair** — Stored in `multi-agent-demo/agents/<name>/.capiscio/keys/`
+2. **Derives `did:web` URI** — Server-assigned decentralized identifier
 3. **Registers with registry** — Creates agent record via `/v1/sdk/agents`
 4. **Patches DID + public key** — Links cryptographic identity to agent
 5. **Activates agent** — Sets status to "active"
@@ -365,32 +273,33 @@ When an agent starts with `--serve`, the SDK (`CapiscIO.connect()`) automaticall
 
 ```
 a2a-demos/
-├── demo-one/                     # Zero to Enforcement (5 min)
-│   ├── server/main.py            # MCP server with 3 guarded tools
-│   ├── agents/                   # Trusted + untrusted agents
-│   ├── run_demo.py               # 4-scenario orchestrator
-│   └── setup.sh                  # One-command setup
-├── demo-two/                     # Policy as Code (10 min)
-│   ├── policies/                 # 3 YAML policy files
-│   ├── scripts/setup_policies.py # Policy creation via admin JWT
-│   ├── run_demo.py               # Interactive 3-phase orchestrator
-│   └── setup.sh
-├── mcp-demo/                     # MCP Guard demo (Docker)
-│   ├── server/main.py            # Guarded MCP filesystem server
-│   ├── client/main.py            # Client with server verification
-│   ├── docker-compose.yml        # Full stack orchestration
-│   └── README.md                 # Detailed MCP demo docs
-├── agents/
-│   ├── langchain-agent/          # LangChain research agent (port 8001)
-│   ├── crewai-agent/             # CrewAI multi-agent crew (port 8002)
-│   └── langgraph-agent/          # LangGraph stateful agent (port 8003)
-├── scripts/
-│   ├── setup.sh                  # Create venvs, install deps
-│   ├── run-agents.sh             # Launch all 3 agents (tmux or manual)
-│   └── demo_driver.py            # Send A2A tasks between agents
-├── shared/
-│   └── capiscio_events/          # Shared event emission module
-├── .env.example                  # Environment template
+├── Makefile                          # Dev/release install & demo commands
+├── LICENSE
+├── enforcement-demo/                 # Zero to Enforcement (5 min)
+│   ├── server/main.py               # MCP server with 3 guarded tools
+│   ├── agents/                      # Trusted + untrusted agents
+│   ├── run_demo.py                  # 5-scenario orchestrator + server identity
+│   ├── setup.sh                     # One-command setup
+│   ├── .env.example                 # Credential template
+│   └── requirements.txt
+├── policy-demo/                     # Policy as Code (10 min)
+│   ├── server/main.py               # MCP server with policy-enforced tools
+│   ├── agents/                      # Trusted + untrusted agents
+│   ├── policies/                    # YAML policy definitions
+│   ├── scripts/setup_policies.py    # Create policies in the registry
+│   ├── run_demo.py                  # 3-phase interactive orchestrator
+│   ├── setup.sh                     # One-command setup
+│   └── .env.example                 # Credential template
+├── multi-agent-demo/                # Multi-framework agent trust (15 min)
+│   ├── agents/
+│   │   ├── langchain-agent/         # LangChain research agent (port 8001)
+│   │   ├── crewai-agent/            # CrewAI multi-agent crew (port 8002)
+│   │   └── langgraph-agent/         # LangGraph stateful agent (port 8003)
+│   ├── shared/                      # Shared event emission module
+│   ├── run_demo.py                  # Send A2A tasks between agents
+│   ├── run-agents.sh                # Launch all 3 agents (tmux or manual)
+│   ├── setup.sh                     # Create venvs, install deps
+│   └── .env.example                 # Environment template
 └── README.md
 ```
 
@@ -407,18 +316,18 @@ a2a-demos/
             │                         │
      ┌──────┴──────┐      ┌──────────┴──────────┐
      │Agent Guard  │      │    MCP Guard        │
+     │ (A2A Proto) │      │ (Enforcement Demo)  │
      ├─────────────┤      ├─────────────────────┤
      │             │      │                     │
      │  LangChain  │      │  MCP Server         │
-     │  :8001      │      │  MCPServerIdentity  │
-     │             │      │  .connect()         │
-     │  CrewAI     │      │  + per-tool trust   │
-     │  :8002      │      │        │            │
-     │             │      │   stdio│transport   │
-     │  LangGraph  │      │        ▼            │
-     │  :8003      │      │  MCP Client         │
-     │             │      │  verifies server    │
-     │ A2A Proto   │      │  DID + badge        │
+     │  :8001      │      │  identity + badge   │
+     │             │      │  + per-tool trust   │
+     │  CrewAI     │      │        │            │
+     │  :8002      │      │   stdio│transport   │
+     │             │      │        ▼            │
+     │  LangGraph  │      │  MCP Client         │
+     │  :8003      │      │  verifies server    │
+     │             │      │  DID + badge        │
      └─────────────┘      └─────────────────────┘
 ```
 
@@ -470,10 +379,10 @@ curl -s http://localhost:8002/health  # CrewAI
 curl -s http://localhost:8003/health  # LangGraph
 
 # 2. Discover agent capabilities
-python scripts/demo_driver.py --discover
+python run_demo.py --discover
 
 # 3. Test a single agent (fast - no LLM call)
-python scripts/demo_driver.py --agent langgraph --task "My login is broken"
+python run_demo.py --agent langgraph --task "My login is broken"
 
 # Expected output:
 # ✅ Task completed in 0.0s

@@ -1,0 +1,29 @@
+# Baseline Policy — badge required for sensitive operations
+#
+# Enforces a simple rule: agents must present a valid badge
+# (issued by the CA) to access sensitive tools.  The badge is
+# cryptographically signed and cannot be forged.
+#
+#   get_price          → open (no badge required)
+#   place_order        → badge required (any registered agent)
+#   cancel_all_orders  → badge required (any registered agent)
+#
+# Expected outcomes with this policy active:
+#   Badged agent    → get_price       → ALLOW
+#   Badged agent    → place_order     → ALLOW
+#   Unbadged agent  → get_price       → ALLOW
+#   Unbadged agent  → place_order     → DENY
+
+version: "1"
+min_trust_level: ""
+allowed_dids: []
+denied_dids: []
+mcp_tools:
+  - tool: "place_order"
+    min_trust_level: "REG"
+    allowed_dids: []
+    denied_dids: []
+  - tool: "cancel_all_orders"
+    min_trust_level: "REG"
+    allowed_dids: []
+    denied_dids: []

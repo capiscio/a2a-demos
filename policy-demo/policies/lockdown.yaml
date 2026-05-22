@@ -1,7 +1,8 @@
 # Lockdown Policy — emergency response
 #
 # Restricts ALL tools to an explicit allowlist of agent DIDs.
-# Since the allowlist is empty, no agent can access anything.
+# The allowlist contains only a non-existent placeholder DID,
+# so effectively no real agent can access anything.
 #
 # Use case: incident response, compliance lockdown, or "red button"
 # scenarios where you need to immediately revoke all agent access.

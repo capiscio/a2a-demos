@@ -134,7 +134,7 @@ async def cancel_all_orders() -> str: ...
 
 **Agent** — one line to connect:
 ```python
-identity = CapiscIO.connect(api_key="sk_live_...", auto_badge=True)
+identity = CapiscIO.connect(api_key="your-api-key", auto_badge=True)
 ```
 
 ## How It Works

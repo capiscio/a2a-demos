@@ -31,8 +31,9 @@ help: ## Show this help
 	@echo "║    make install      Install all deps from PyPI          ║"
 	@echo "║                                                          ║"
 	@echo "║  Demos:                                                  ║"
-	@echo "║    make enforcement-demo  Run Enforcement Demo             ║"
-	@echo "║    make multi-agent-demo  Run Multi-Agent Demo              ║"
+	@echo "║    make enforcement-demo  Run Enforcement Demo            ║"
+	@echo "║    make policy-demo       Run Policy Demo                 ║"
+	@echo "║    make multi-agent-demo  Run Multi-Agent Demo            ║"
 	@echo "║                                                          ║"
 	@echo "║  Quality:                                                ║"
 	@echo "║    make lint         Lint all Python files                ║"
@@ -65,6 +66,8 @@ dev: dev-check ## Install ALL demos using local repos (pre-release testing)
 	$(PYTHON) -m pip install python-dotenv httpx uvicorn fastapi -q
 	# Enforcement Demo
 	cd enforcement-demo && $(PYTHON) -m pip install -r requirements.txt --no-deps -q 2>/dev/null || true
+	# Policy Demo
+	cd policy-demo && $(PYTHON) -m pip install -r requirements.txt --no-deps -q 2>/dev/null || true
 	# Agent frameworks
 	$(PYTHON) -m pip install langchain langchain-openai langchain-community langgraph -q
 	$(PYTHON) -m pip install "crewai>=1.12.0,<2.0.0" "crewai-tools>=1.12.0,<2.0.0" -q

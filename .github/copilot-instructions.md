@@ -122,7 +122,7 @@ cd multi-agent-demo && ./setup.sh
 python run_demo.py --agent langchain
 
 # Start single agent server
-cd agents/langchain-agent && source .venv/bin/activate && python main.py --serve
+cd multi-agent-demo/agents/langchain-agent && source .venv/bin/activate && python main.py --serve
 
 # Start local infrastructure
 docker compose up -d

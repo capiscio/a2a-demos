@@ -55,11 +55,12 @@ def _cleanup_core_processes() -> None:
         result = subprocess.run(
             ["pkill", "-f", "capiscio rpc"],
             capture_output=True,
+            timeout=5,
         )
         if result.returncode == 0:
             print("  [cleanup] Terminated stale capiscio-core processes.")
-    except FileNotFoundError:
-        pass  # pkill not available on this platform
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass  # pkill not available or timed out
 
 
 # Kill stale cores from previous runs, and register cleanup for exit.

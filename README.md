@@ -83,7 +83,7 @@ async def place_order(sku: str, quantity: int) -> str: ...
 
 **Agent** — one line to connect:
 ```python
-identity = CapiscIO.connect(api_key="sk_live_...", auto_badge=True)
+identity = CapiscIO.connect(api_key="your-api-key", auto_badge=True)
 ```
 
 **→ Full details, expected output, and troubleshooting: [`enforcement-demo/README.md`](enforcement-demo/README.md)**
